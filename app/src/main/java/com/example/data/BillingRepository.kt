@@ -58,6 +58,16 @@ class BillingRepository(private val database: AppDatabase) {
         return "20$monthTwoDigits/$year"
     }
 
+    /**
+     * Customer Bill Number Pattern:
+     * 4 digits where first two digits are always 30 and last two digits are the selected month (01..12),
+     * followed by /<currentYear>, e.g. October 2026 -> 3010/2026
+     */
+    fun formatCustomerBillNumber(month: Int, year: Int): String {
+        val monthTwoDigits = month.coerceIn(1, 12).toString().padStart(2, '0')
+        return "30$monthTwoDigits/$year"
+    }
+
     suspend fun generateNextBillNumber(category: String, month: Int, year: Int): String {
         if (category == BillEntity.CATEGORY_CENTRAL_JAIL) {
             return formatCentralJailBillNumber(month, year)
@@ -65,24 +75,15 @@ class BillingRepository(private val database: AppDatabase) {
         if (category == BillEntity.CATEGORY_IG_OFFICE) {
             return formatIgOfficeBillNumber(month, year)
         }
-        val prefix = "CUST-"
-        val existingNumbers = billDao.getAllBillNumbers()
-        var maxNum = 1000
-        for (numStr in existingNumbers) {
-            if (numStr.startsWith(prefix)) {
-                val digits = numStr.removePrefix(prefix).filter { it.isDigit() }.toIntOrNull()
-                if (digits != null && digits > maxNum) {
-                    maxNum = digits
-                }
-            }
+        val base = formatCustomerBillNumber(month, year)
+        if (billDao.getBillByNumber(base) == null) {
+            return base
         }
-        var candidate = "$prefix${maxNum + 1}"
-        var offset = 2
-        while (billDao.getBillByNumber(candidate) != null) {
-            candidate = "$prefix${maxNum + offset}"
-            offset++
+        var suffix = 2
+        while (billDao.getBillByNumber("$base-$suffix") != null) {
+            suffix++
         }
-        return candidate
+        return "$base-$suffix"
     }
 
     suspend fun isBillNumberDuplicate(billNumber: String, excludeBillId: Long? = null): Boolean {

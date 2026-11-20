@@ -83,8 +83,12 @@ fun CreateBillScreen(
     onMonthChange: (Int) -> Unit,
     onBillNumberChange: (String) -> Unit,
     onCustomerNameChange: (String) -> Unit,
+    onCustomerAddressChange: (String) -> Unit,
     onSelectCustomer: (CustomerEntity) -> Unit,
     onDateChange: (Long) -> Unit,
+    onStartDateChange: (Long?) -> Unit,
+    onEndDateChange: (Long?) -> Unit,
+    onPaymentInstructionsChange: (String) -> Unit,
     onPaymentStatusChange: (String) -> Unit,
     onItemNewspaperChange: (Int, String, Double?) -> Unit,
     onItemPrice1Change: (Int, String) -> Unit,
@@ -100,8 +104,8 @@ fun CreateBillScreen(
     var customerDropdownExpanded by remember { mutableStateOf(false) }
     var monthDropdownExpanded by remember { mutableStateOf(false) }
 
-    fun openDatePicker() {
-        val cal = Calendar.getInstance().apply { timeInMillis = formState.billDateMillis }
+    fun openDatePicker(initialMillis: Long = formState.billDateMillis, onPicked: (Long) -> Unit) {
+        val cal = Calendar.getInstance().apply { timeInMillis = initialMillis }
         DatePickerDialog(
             context,
             { _, year, month, day ->
@@ -109,7 +113,7 @@ fun CreateBillScreen(
                     set(year, month, day, 12, 0, 0)
                     set(Calendar.MILLISECOND, 0)
                 }
-                onDateChange(picked.timeInMillis)
+                onPicked(picked.timeInMillis)
             },
             cal.get(Calendar.YEAR),
             cal.get(Calendar.MONTH),
@@ -240,6 +244,19 @@ fun CreateBillScreen(
                                 }
                             }
                         }
+
+                        // Address Text Box for Customer Bills
+                        if (formState.billCategory == BillEntity.CATEGORY_CUSTOMER) {
+                            OutlinedTextField(
+                                value = formState.customerAddress,
+                                onValueChange = onCustomerAddressChange,
+                                label = { Text("Customer Address / સરનામું") },
+                                maxLines = 2,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("bill_customer_address_input")
+                            )
+                        }
                     }
 
                     // Month Selector Dropdown
@@ -291,7 +308,7 @@ fun CreateBillScreen(
                         )
 
                         OutlinedButton(
-                            onClick = { openDatePicker() },
+                            onClick = { openDatePicker(formState.billDateMillis, onDateChange) },
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -307,6 +324,67 @@ fun CreateBillScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(Formatters.formatDate(formState.billDateMillis))
                         }
+                    }
+
+                    // Due / Billing Period Start & End Dates + Payment Instructions for Customer Bills
+                    if (formState.billCategory == BillEntity.CATEGORY_CUSTOMER) {
+                        Text(
+                            text = "Bill Due Dates (Start & End)",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = InkNavy
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    openDatePicker(
+                                        formState.billStartDateMillis ?: System.currentTimeMillis(),
+                                        onStartDateChange
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .testTag("bill_start_date_button")
+                            ) {
+                                Text(
+                                    text = formState.billStartDateMillis?.let { "Start: ${Formatters.formatDate(it)}" }
+                                        ?: "Start Date"
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    openDatePicker(
+                                        formState.billEndDateMillis ?: System.currentTimeMillis(),
+                                        onEndDateChange
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .testTag("bill_end_date_button")
+                            ) {
+                                Text(
+                                    text = formState.billEndDateMillis?.let { "End: ${Formatters.formatDate(it)}" }
+                                        ?: "End Date"
+                                )
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = formState.paymentInstructions,
+                            onValueChange = onPaymentInstructionsChange,
+                            label = { Text("Payment Instructions (e.g. Pay via UPI)") },
+                            maxLines = 2,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("bill_payment_instructions_input")
+                        )
                     }
 
                     // Payment Status

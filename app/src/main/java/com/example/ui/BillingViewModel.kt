@@ -27,7 +27,9 @@ sealed interface AppScreen {
     data object CentralJailHistory : AppScreen
     data object IgOfficeHub : AppScreen
     data object IgOfficeHistory : AppScreen
-    data object CustomerBills : AppScreen
+    data object CustomerHub : AppScreen
+    data object CustomerHistory : AppScreen
+    data object CustomerDirectory : AppScreen
     data object Settings : AppScreen
     data object CreateEditBill : AppScreen
     data class BillPreview(val billId: Long) : AppScreen
@@ -83,6 +85,9 @@ data class BillFormState(
     val customerPhone: String = "",
     val customerAddress: String = "",
     val billDateMillis: Long = System.currentTimeMillis(),
+    val billStartDateMillis: Long? = null,
+    val billEndDateMillis: Long? = null,
+    val paymentInstructions: String = "",
     val paymentStatus: String = BillEntity.PAYMENT_UNPAID,
     val items: List<BillLineItemDraft> = listOf(BillLineItemDraft(id = 1)),
     val errorMessage: String? = null,
@@ -255,7 +260,7 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun navigateTo(screen: AppScreen) {
-        if (screen is AppScreen.CentralJailHistory || screen is AppScreen.IgOfficeHistory || screen is AppScreen.CustomerBills) {
+        if (screen is AppScreen.CentralJailHistory || screen is AppScreen.IgOfficeHistory || screen is AppScreen.CustomerHistory) {
             _billFilter.value = BillFilterState()
         }
         _currentScreen.value = screen
@@ -291,6 +296,12 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
                 else -> preselectedCustomer?.name.orEmpty()
             }
 
+            val defaultInstructions = if (category == BillEntity.CATEGORY_CUSTOMER) {
+                "Pay via UPI: 9924545306 / Cash"
+            } else {
+                ""
+            }
+
             _billForm.value = BillFormState(
                 editingBillId = 0L,
                 billCategory = category,
@@ -302,6 +313,9 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
                 customerPhone = preselectedCustomer?.phone.orEmpty(),
                 customerAddress = preselectedCustomer?.address.orEmpty(),
                 billDateMillis = System.currentTimeMillis(),
+                billStartDateMillis = null,
+                billEndDateMillis = null,
+                paymentInstructions = defaultInstructions,
                 paymentStatus = BillEntity.PAYMENT_UNPAID,
                 items = listOf(BillLineItemDraft(id = 1))
             )
@@ -340,6 +354,9 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
             customerPhone = bill.customerPhone,
             customerAddress = bill.customerAddress,
             billDateMillis = bill.billDateMillis,
+            billStartDateMillis = bill.billStartDateMillis,
+            billEndDateMillis = bill.billEndDateMillis,
+            paymentInstructions = bill.paymentInstructions,
             paymentStatus = bill.paymentStatus,
             items = drafts
         )
@@ -356,10 +373,27 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
             val updatedNumber = when (form.billCategory) {
                 BillEntity.CATEGORY_CENTRAL_JAIL -> repository.formatCentralJailBillNumber(month, form.billYear)
                 BillEntity.CATEGORY_IG_OFFICE -> repository.formatIgOfficeBillNumber(month, form.billYear)
+                BillEntity.CATEGORY_CUSTOMER -> repository.formatCustomerBillNumber(month, form.billYear)
                 else -> form.billNumber
             }
             form.copy(billMonth = month, billNumber = updatedNumber, errorMessage = null)
         }
+    }
+
+    fun updateCustomerAddress(value: String) {
+        _billForm.update { it.copy(customerAddress = value) }
+    }
+
+    fun updateBillStartDate(millis: Long?) {
+        _billForm.update { it.copy(billStartDateMillis = millis) }
+    }
+
+    fun updateBillEndDate(millis: Long?) {
+        _billForm.update { it.copy(billEndDateMillis = millis) }
+    }
+
+    fun updatePaymentInstructions(value: String) {
+        _billForm.update { it.copy(paymentInstructions = value) }
     }
 
     fun updateBillNumber(value: String) {
@@ -502,6 +536,9 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
                 customerPhone = form.customerPhone.trim(),
                 customerAddress = form.customerAddress.trim(),
                 billDateMillis = form.billDateMillis,
+                billStartDateMillis = form.billStartDateMillis,
+                billEndDateMillis = form.billEndDateMillis,
+                paymentInstructions = form.paymentInstructions.trim(),
                 grandTotal = grandTotal,
                 paymentStatus = form.paymentStatus
             )

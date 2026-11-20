@@ -375,6 +375,78 @@ fun IgOfficeHubScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomerHubScreen(
+    customerBillsCount: Int,
+    customersCount: Int,
+    onBack: () -> Unit,
+    onCreateNewBill: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onOpenDirectory: () -> Unit
+) {
+    BackHandler(onBack = onBack)
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Customer Bills",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = InkNavy)
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            DashboardModuleCard(
+                title = "1. Create New Bill",
+                subtitle = "નવું ગ્રાહક બિલ • Auto bill no. 30MM/YYYY, Due Dates & UPI",
+                icon = Icons.Default.AddCircleOutline,
+                accentColor = Terracotta,
+                onClick = onCreateNewBill,
+                testTag = "customer_create_bill"
+            )
+
+            DashboardModuleCard(
+                title = "2. Bill History ($customerBillsCount)",
+                subtitle = "જૂના બિલ જુઓ • Search, Filter by Date & Paid/Unpaid",
+                icon = Icons.Default.History,
+                accentColor = InkNavy,
+                onClick = onOpenHistory,
+                testTag = "customer_bill_history"
+            )
+
+            DashboardModuleCard(
+                title = "3. Customers Directory ($customersCount)",
+                subtitle = "ગ્રાહક યાદી • Search by Name, Phone & Address",
+                icon = Icons.Default.People,
+                accentColor = Color(0xFF1B7A43),
+                onClick = onOpenDirectory,
+                testTag = "customer_directory"
+            )
+        }
+    }
+}
+
 @Composable
 private fun DashboardModuleCard(
     title: String,

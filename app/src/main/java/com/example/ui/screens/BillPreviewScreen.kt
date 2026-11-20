@@ -318,13 +318,23 @@ fun PruthviInvoiceTemplate(
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
-                    Text(
-                        text = "M/s.  $displayCustomer",
-                        color = InvoicePink,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 15.sp
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "M/s.  $displayCustomer",
+                            color = InvoicePink,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 15.sp
+                        )
+                        if (bill.customerAddress.isNotBlank() && bill.billCategory == BillEntity.CATEGORY_CUSTOMER) {
+                            Text(
+                                text = bill.customerAddress,
+                                color = InvoicePink,
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
                 }
 
                 Column(
@@ -348,6 +358,18 @@ fun PruthviInvoiceTemplate(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                     )
+                    if (bill.billStartDateMillis != null || bill.billEndDateMillis != null) {
+                        HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                        val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                        val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                        Text(
+                            text = "Due: $startStr to $endStr",
+                            color = InvoicePink,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
@@ -472,8 +494,18 @@ fun PruthviInvoiceTemplate(
                 }
             }
 
-            // 6. Footer Signature
-            Spacer(modifier = Modifier.height(14.dp))
+            // 6. Payment Instructions & Footer Signature
+            if (bill.paymentInstructions.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Payment Note: ${bill.paymentInstructions}",
+                    color = InvoicePink,
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "For,Pruthvi News Agency",
                 color = InvoicePink,

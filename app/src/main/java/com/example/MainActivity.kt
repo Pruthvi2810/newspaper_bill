@@ -47,6 +47,7 @@ import com.example.ui.screens.BillPreviewScreen
 import com.example.ui.screens.BillsListScreen
 import com.example.ui.screens.CentralJailHubScreen
 import com.example.ui.screens.CreateBillScreen
+import com.example.ui.screens.CustomerHubScreen
 import com.example.ui.screens.CustomersScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.IgOfficeHubScreen
@@ -148,7 +149,7 @@ private fun MainAppContent(
                 totalCustomersCount = allCustomers.size,
                 onOpenCentralJail = { viewModel.navigateTo(AppScreen.CentralJailHub) },
                 onOpenIgOffice = { viewModel.navigateTo(AppScreen.IgOfficeHub) },
-                onOpenCustomerBill = { viewModel.navigateTo(AppScreen.CustomerBills) },
+                onOpenCustomerBill = { viewModel.navigateTo(AppScreen.CustomerHub) },
                 onOpenSettings = { viewModel.navigateTo(AppScreen.Settings) },
                 onLogout = viewModel::logout
             )
@@ -282,110 +283,118 @@ private fun MainAppContent(
             }
         }
 
-        is AppScreen.CustomerBills -> {
-            BackHandler { viewModel.navigateTo(AppScreen.Dashboard) }
-            var selectedSubTab by rememberSaveable { mutableIntStateOf(0) }
-            var showAddCustomerDialog by remember { mutableStateOf(false) }
+        is AppScreen.CustomerHub -> {
+            val custBillCount = allBills.count { it.bill.billCategory == BillEntity.CATEGORY_CUSTOMER }
+            CustomerHubScreen(
+                customerBillsCount = custBillCount,
+                customersCount = allCustomers.size,
+                onBack = { viewModel.navigateTo(AppScreen.Dashboard) },
+                onCreateNewBill = {
+                    viewModel.startNewBill(
+                        category = BillEntity.CATEGORY_CUSTOMER,
+                        fromScreen = AppScreen.CustomerHub
+                    )
+                },
+                onOpenHistory = { viewModel.navigateTo(AppScreen.CustomerHistory) },
+                onOpenDirectory = { viewModel.navigateTo(AppScreen.CustomerDirectory) }
+            )
+        }
+
+        is AppScreen.CustomerHistory -> {
+            BackHandler { viewModel.navigateTo(AppScreen.CustomerHub) }
             val customerBills = remember(filteredBills) {
                 filteredBills.filter { it.bill.billCategory == BillEntity.CATEGORY_CUSTOMER }
             }
-
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
-                        title = {
-                            Text(
-                                text = if (selectedSubTab == 0) "Customer Bills" else "Customers Directory",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        },
+                        title = { Text("Customer Bill History", fontWeight = FontWeight.Bold, color = Color.White) },
                         navigationIcon = {
-                            IconButton(onClick = { viewModel.navigateTo(AppScreen.Dashboard) }) {
+                            IconButton(onClick = { viewModel.navigateTo(AppScreen.CustomerHub) }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = InkNavy)
                     )
                 },
-                bottomBar = {
-                    NavigationBar {
-                        NavigationBarItem(
-                            selected = selectedSubTab == 0,
-                            onClick = { selectedSubTab = 0 },
-                            icon = { Icon(Icons.Default.ReceiptLong, contentDescription = null) },
-                            label = { Text("Bills") }
-                        )
-                        NavigationBarItem(
-                            selected = selectedSubTab == 1,
-                            onClick = { selectedSubTab = 1 },
-                            icon = { Icon(Icons.Default.People, contentDescription = null) },
-                            label = { Text("Customers") }
-                        )
-                    }
-                },
                 floatingActionButton = {
-                    if (selectedSubTab == 0) {
-                        ExtendedFloatingActionButton(
-                            onClick = {
-                                viewModel.startNewBill(
-                                    category = BillEntity.CATEGORY_CUSTOMER,
-                                    fromScreen = AppScreen.CustomerBills
-                                )
-                            },
-                            icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                            text = { Text("New Bill", fontWeight = FontWeight.Bold) },
-                            containerColor = InkNavy,
-                            contentColor = Color.White,
-                            modifier = Modifier.testTag("fab_new_bill")
-                        )
-                    } else {
-                        ExtendedFloatingActionButton(
-                            onClick = { showAddCustomerDialog = true },
-                            icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                            text = { Text("Add Customer", fontWeight = FontWeight.Bold) },
-                            containerColor = InkNavy,
-                            contentColor = Color.White,
-                            modifier = Modifier.testTag("fab_add_customer")
-                        )
-                    }
+                    ExtendedFloatingActionButton(
+                        onClick = {
+                            viewModel.startNewBill(
+                                category = BillEntity.CATEGORY_CUSTOMER,
+                                fromScreen = AppScreen.CustomerHistory
+                            )
+                        },
+                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        text = { Text("New Bill", fontWeight = FontWeight.Bold) },
+                        containerColor = InkNavy,
+                        contentColor = Color.White,
+                        modifier = Modifier.testTag("fab_new_bill")
+                    )
                 }
             ) { innerPadding ->
-                Box(modifier = Modifier.padding(innerPadding)) {
-                    if (selectedSubTab == 0) {
-                        BillsListScreen(
-                            bills = customerBills,
-                            filterState = billFilter,
-                            onSearchChange = viewModel::updateBillSearchQuery,
-                            onPaymentFilterChange = viewModel::updateBillPaymentFilter,
-                            onDateRangeFilterChange = viewModel::updateBillDateRangeFilter,
-                            onCustomDateRangeChange = viewModel::updateCustomDateRange,
-                            onBillClick = { viewModel.openBillPreview(it.bill.id, AppScreen.CustomerBills) },
-                            onEditBill = { viewModel.startEditBill(it, AppScreen.CustomerBills) },
-                            onTogglePaid = viewModel::toggleBillPaymentStatus,
-                            onDeleteBill = viewModel::deleteBill
-                        )
-                    } else {
-                        CustomersScreen(
-                            customers = filteredCustomers,
-                            searchState = customerSearch,
-                            onSearchQueryChange = viewModel::updateCustomerSearchQuery,
-                            onSearchFieldChange = viewModel::updateCustomerSearchField,
-                            onSaveCustomer = viewModel::saveCustomer,
-                            onDeleteCustomer = viewModel::deleteCustomer,
-                            onCreateBillForCustomer = { customer ->
-                                viewModel.startNewBill(
-                                    category = BillEntity.CATEGORY_CUSTOMER,
-                                    preselectedCustomer = customer,
-                                    fromScreen = AppScreen.CustomerBills
-                                )
-                            },
-                            showAddDialog = showAddCustomerDialog,
-                            onDismissAddDialog = { showAddCustomerDialog = false }
-                        )
-                    }
+                BillsListScreen(
+                    bills = customerBills,
+                    filterState = billFilter,
+                    onSearchChange = viewModel::updateBillSearchQuery,
+                    onPaymentFilterChange = viewModel::updateBillPaymentFilter,
+                    onDateRangeFilterChange = viewModel::updateBillDateRangeFilter,
+                    onCustomDateRangeChange = viewModel::updateCustomDateRange,
+                    onBillClick = { viewModel.openBillPreview(it.bill.id, AppScreen.CustomerHistory) },
+                    onEditBill = { viewModel.startEditBill(it, AppScreen.CustomerHistory) },
+                    onTogglePaid = viewModel::toggleBillPaymentStatus,
+                    onDeleteBill = viewModel::deleteBill,
+                    modifier = Modifier.padding(innerPadding)
+                )
+            }
+        }
+
+        is AppScreen.CustomerDirectory -> {
+            BackHandler { viewModel.navigateTo(AppScreen.CustomerHub) }
+            var showAddCustomerDialog by remember { mutableStateOf(false) }
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Customers Directory", fontWeight = FontWeight.Bold, color = Color.White) },
+                        navigationIcon = {
+                            IconButton(onClick = { viewModel.navigateTo(AppScreen.CustomerHub) }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = InkNavy)
+                    )
+                },
+                floatingActionButton = {
+                    ExtendedFloatingActionButton(
+                        onClick = { showAddCustomerDialog = true },
+                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        text = { Text("Add Customer", fontWeight = FontWeight.Bold) },
+                        containerColor = InkNavy,
+                        contentColor = Color.White,
+                        modifier = Modifier.testTag("fab_add_customer")
+                    )
                 }
+            ) { innerPadding ->
+                CustomersScreen(
+                    customers = filteredCustomers,
+                    searchState = customerSearch,
+                    onSearchQueryChange = viewModel::updateCustomerSearchQuery,
+                    onSearchFieldChange = viewModel::updateCustomerSearchField,
+                    onSaveCustomer = viewModel::saveCustomer,
+                    onDeleteCustomer = viewModel::deleteCustomer,
+                    onCreateBillForCustomer = { customer ->
+                        viewModel.startNewBill(
+                            category = BillEntity.CATEGORY_CUSTOMER,
+                            preselectedCustomer = customer,
+                            fromScreen = AppScreen.CustomerDirectory
+                        )
+                    },
+                    showAddDialog = showAddCustomerDialog,
+                    onDismissAddDialog = { showAddCustomerDialog = false },
+                    modifier = Modifier.padding(innerPadding)
+                )
             }
         }
 
@@ -408,8 +417,12 @@ private fun MainAppContent(
                 onMonthChange = viewModel::updateBillMonth,
                 onBillNumberChange = viewModel::updateBillNumber,
                 onCustomerNameChange = viewModel::updateCustomerName,
+                onCustomerAddressChange = viewModel::updateCustomerAddress,
                 onSelectCustomer = viewModel::selectExistingCustomer,
                 onDateChange = viewModel::updateBillDate,
+                onStartDateChange = viewModel::updateBillStartDate,
+                onEndDateChange = viewModel::updateBillEndDate,
+                onPaymentInstructionsChange = viewModel::updatePaymentInstructions,
                 onPaymentStatusChange = viewModel::updateBillPaymentStatus,
                 onItemNewspaperChange = viewModel::updateLineItemNewspaper,
                 onItemPrice1Change = viewModel::updateLineItemPrice1,

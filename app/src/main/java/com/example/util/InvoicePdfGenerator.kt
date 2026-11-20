@@ -177,7 +177,8 @@ object InvoicePdfGenerator {
         y += addrBoxHeight + 4f
 
         // 4. Customer & Bill No/Date Row
-        val infoHeight = 36f
+        val hasDueDates = bill.billStartDateMillis != null || bill.billEndDateMillis != null
+        val infoHeight = if (hasDueDates) 52f else 36f
         val splitX = margin + (right - margin) * 0.56f
         canvas.drawRoundRect(RectF(margin, y, splitX - 3f, y + infoHeight), 6f, 6f, borderPaint)
         val displayCustomer = if (bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL) {
@@ -185,12 +186,26 @@ object InvoicePdfGenerator {
         } else {
             bill.customerName
         }
-        canvas.drawText("M/s. $displayCustomer", margin + 8f, y + 22f, boldPaint)
+        canvas.drawText("M/s. $displayCustomer", margin + 8f, y + 18f, boldPaint)
+        if (bill.customerAddress.isNotBlank() && bill.billCategory == BillEntity.CATEGORY_CUSTOMER) {
+            canvas.drawText(bill.customerAddress, margin + 8f, y + 34f, normalPaint)
+        }
 
         canvas.drawRoundRect(RectF(splitX + 3f, y, right, y + infoHeight), 6f, 6f, borderPaint)
-        canvas.drawLine(splitX + 3f, y + infoHeight / 2f, right, y + infoHeight / 2f, borderPaint)
-        canvas.drawText("No. :   ${bill.billNumber}", splitX + 10f, y + 13f, boldPaint)
-        canvas.drawText("Date :  ${Formatters.formatDate(bill.billDateMillis)}", splitX + 10f, y + 31f, boldPaint)
+        if (hasDueDates) {
+            val rowH = infoHeight / 3f
+            canvas.drawLine(splitX + 3f, y + rowH, right, y + rowH, borderPaint)
+            canvas.drawLine(splitX + 3f, y + rowH * 2f, right, y + rowH * 2f, borderPaint)
+            canvas.drawText("No. :   ${bill.billNumber}", splitX + 10f, y + 13f, boldPaint)
+            canvas.drawText("Date :  ${Formatters.formatDate(bill.billDateMillis)}", splitX + 10f, y + rowH + 13f, boldPaint)
+            val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+            val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+            canvas.drawText("Due : $startStr to $endStr", splitX + 10f, y + rowH * 2f + 13f, boldPaint)
+        } else {
+            canvas.drawLine(splitX + 3f, y + infoHeight / 2f, right, y + infoHeight / 2f, borderPaint)
+            canvas.drawText("No. :   ${bill.billNumber}", splitX + 10f, y + 13f, boldPaint)
+            canvas.drawText("Date :  ${Formatters.formatDate(bill.billDateMillis)}", splitX + 10f, y + 31f, boldPaint)
+        }
         y += infoHeight + 4f
 
         // 5. Table Columns
@@ -258,7 +273,11 @@ object InvoicePdfGenerator {
         )
         y += totalHeight + 28f
 
-        // 8. Footer Signature
+        // 8. Payment Instructions & Footer Signature
+        if (bill.paymentInstructions.isNotBlank()) {
+            canvas.drawText("Payment Note: ${bill.paymentInstructions}", margin + 4f, y, boldPaint)
+            y += 18f
+        }
         canvas.drawText("For,Pruthvi News Agency", right - 4f, y, boldRightPaint)
         canvas.drawLine(margin, y + 10f, right, y + 10f, borderPaint)
     }
