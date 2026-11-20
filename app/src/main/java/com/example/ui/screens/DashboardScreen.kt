@@ -21,8 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.History
@@ -59,14 +59,17 @@ import com.example.ui.theme.Terracotta
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
+    userName: String,
     totalBillsCount: Int,
     totalCustomersCount: Int,
     onOpenCentralJail: () -> Unit,
     onOpenIgOffice: () -> Unit,
     onOpenCustomerBill: () -> Unit,
     onOpenSettings: () -> Unit,
-    onLogout: () -> Unit
+    onOpenProfile: () -> Unit
 ) {
+    val greeting = rememberGreeting()
+    val displayName = userName.trim().ifBlank { "Guest" }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,13 +100,14 @@ fun DashboardScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = onLogout,
-                        modifier = Modifier.testTag("dashboard_logout_button")
+                        onClick = onOpenProfile,
+                        modifier = Modifier.testTag("dashboard_profile_button")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Logout",
-                            tint = Color.White
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Account Profile",
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
                         )
                     }
                 },
@@ -133,15 +137,16 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(R.string.dashboard_title),
+                            text = "$greeting, $displayName!",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "$totalBillsCount Saved Bills  •  $totalCustomersCount Customers",
+                            text = "${stringResource(R.string.dashboard_title)}  •  $totalBillsCount Bills  •  $totalCustomersCount Customers",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.85f)
                         )
@@ -274,7 +279,7 @@ fun CentralJailHubScreen(
             }
 
             DashboardModuleCard(
-                title = "1. Create New Bill",
+                title = "Create New Bill",
                 subtitle = "નવું બિલ બનાવો • Auto bill no. 10MM/YYYY, Dual Rate & Qty",
                 icon = Icons.Default.AddCircleOutline,
                 accentColor = Terracotta,
@@ -283,7 +288,7 @@ fun CentralJailHubScreen(
             )
 
             DashboardModuleCard(
-                title = "2. Bill History ($jailBillsCount)",
+                title = "Bill History ($jailBillsCount)",
                 subtitle = "જૂના બિલ જુઓ • Search, Filter by Date & Paid/Unpaid",
                 icon = Icons.Default.History,
                 accentColor = InkNavy,
@@ -356,7 +361,7 @@ fun IgOfficeHubScreen(
             }
 
             DashboardModuleCard(
-                title = "1. Create New Bill",
+                title = "Create New Bill",
                 subtitle = "નવું બિલ બનાવો • Auto bill no. 20MM/YYYY, Price × Qty",
                 icon = Icons.Default.AddCircleOutline,
                 accentColor = Terracotta,
@@ -365,7 +370,7 @@ fun IgOfficeHubScreen(
             )
 
             DashboardModuleCard(
-                title = "2. Bill History ($igBillsCount)",
+                title = "Bill History ($igBillsCount)",
                 subtitle = "જૂના બિલ જુઓ • Search, Filter by Date & Paid/Unpaid",
                 icon = Icons.Default.History,
                 accentColor = InkNavy,
@@ -419,7 +424,7 @@ fun CustomerHubScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             DashboardModuleCard(
-                title = "1. Create New Bill",
+                title = "Create New Bill",
                 subtitle = "નવું ગ્રાહક બિલ • Auto bill no. 30MM/YYYY, Due Dates & UPI",
                 icon = Icons.Default.AddCircleOutline,
                 accentColor = Terracotta,
@@ -428,7 +433,7 @@ fun CustomerHubScreen(
             )
 
             DashboardModuleCard(
-                title = "2. Bill History ($customerBillsCount)",
+                title = "Bill History ($customerBillsCount)",
                 subtitle = "જૂના બિલ જુઓ • Search, Filter by Date & Paid/Unpaid",
                 icon = Icons.Default.History,
                 accentColor = InkNavy,
@@ -437,7 +442,7 @@ fun CustomerHubScreen(
             )
 
             DashboardModuleCard(
-                title = "3. Customers Directory ($customersCount)",
+                title = "Customers Directory ($customersCount)",
                 subtitle = "ગ્રાહક યાદી • Search by Name, Phone & Address",
                 icon = Icons.Default.People,
                 accentColor = Color(0xFF1B7A43),
@@ -512,5 +517,16 @@ private fun DashboardModuleCard(
                 modifier = Modifier.size(16.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun rememberGreeting(): String {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return when (hour) {
+        in 5..11 -> "Good Morning"
+        in 12..16 -> "Good Afternoon"
+        in 17..20 -> "Good Evening"
+        else -> "Welcome"
     }
 }

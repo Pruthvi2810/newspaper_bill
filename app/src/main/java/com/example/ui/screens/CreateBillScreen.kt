@@ -2,9 +2,11 @@ package com.example.ui.screens
 
 import android.app.DatePickerDialog
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Preview
@@ -128,6 +131,9 @@ fun CreateBillScreen(
         else -> "Customer - New Bill"
     }
 
+    val isCentralJail = formState.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL
+    var showCalculator by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -139,6 +145,20 @@ fun CreateBillScreen(
                             contentDescription = "Back",
                             tint = Color.White
                         )
+                    }
+                },
+                actions = {
+                    if (isCentralJail) {
+                        IconButton(
+                            onClick = { showCalculator = !showCalculator },
+                            modifier = Modifier.testTag("central_jail_calculator_toggle")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Calculate,
+                                contentDescription = "Toggle Calculator",
+                                tint = if (showCalculator) Color(0xFFF38218) else Color.White
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = InkNavy)
@@ -154,6 +174,12 @@ fun CreateBillScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Toggleable Calculator (Only for Ahmedabad Central Jail Bill)
+            if (isCentralJail) {
+                AnimatedVisibility(visible = showCalculator) {
+                    QuickCalculatorCard(onClose = { showCalculator = false })
+                }
+            }
             // Bill Metadata Card
             Card(
                 shape = RoundedCornerShape(14.dp),

@@ -43,6 +43,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.BillEntity
 import com.example.data.BillWithItems
+import com.example.ui.components.PrintPreviewDialog
 import com.example.ui.theme.InkNavy
 import com.example.ui.theme.InvoicePink
 import com.example.ui.theme.PaidGreen
@@ -61,6 +66,7 @@ import com.example.ui.theme.Terracotta
 import com.example.ui.theme.UnpaidRed
 import com.example.util.Formatters
 import com.example.util.InvoicePdfGenerator
+import com.example.util.PdfPrintOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,17 +81,37 @@ fun BillPreviewScreen(
     val context = LocalContext.current
     val bill = billWithItems.bill
     val isPaid = bill.paymentStatus == BillEntity.PAYMENT_PAID
+    var showPrintPreviewDialog by remember { mutableStateOf(false) }
+    var lastPrintOptions by remember { mutableStateOf(PdfPrintOptions()) }
 
     val pdfExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
         if (uri != null) {
-            val result = InvoicePdfGenerator.writeInvoicePdfToUri(context, uri, billWithItems)
+            val result = InvoicePdfGenerator.writeInvoicePdfToUri(
+                context = context,
+                uri = uri,
+                billWithItems = billWithItems,
+                options = lastPrintOptions
+            )
             result.fold(
                 onSuccess = { onMessage("PDF exported successfully.") },
                 onFailure = { onMessage("Failed to export PDF: ${it.message}") }
             )
         }
+    }
+
+    if (showPrintPreviewDialog) {
+        PrintPreviewDialog(
+            billWithItems = billWithItems,
+            initialOptions = lastPrintOptions,
+            onDismiss = { showPrintPreviewDialog = false },
+            onConfirmPrint = { selectedOptions ->
+                lastPrintOptions = selectedOptions
+                showPrintPreviewDialog = false
+                InvoicePdfGenerator.printInvoice(context, billWithItems, selectedOptions)
+            }
+        )
     }
 
     Scaffold(
@@ -140,7 +166,7 @@ fun BillPreviewScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { InvoicePdfGenerator.printInvoice(context, billWithItems) },
+                    onClick = { showPrintPreviewDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = InkNavy),
                     modifier = Modifier
                         .weight(1f)

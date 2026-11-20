@@ -53,6 +53,7 @@ import com.example.ui.screens.CustomersScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.IgOfficeHubScreen
 import com.example.ui.screens.LoginScreen
+import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.InkNavy
@@ -79,7 +80,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NewspaperBillingApp(viewModel: BillingViewModel = viewModel()) {
     var showSplash by rememberSaveable { mutableStateOf(true) }
-    val isLoggedIn by viewModel.isLoggedIn.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val loginError by viewModel.loginError.collectAsStateWithLifecycle()
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val filteredBills by viewModel.filteredBills.collectAsStateWithLifecycle()
@@ -104,19 +105,15 @@ fun NewspaperBillingApp(viewModel: BillingViewModel = viewModel()) {
     Crossfade(
         targetState = showSplash,
         animationSpec = tween(durationMillis = 320),
-        label = "splash_to_login_transition"
+        label = "splash_to_app_transition"
     ) { isSplashVisible ->
         if (isSplashVisible) {
             SplashScreen(onFinished = { showSplash = false })
-        } else if (!isLoggedIn) {
-            LoginScreen(
-                errorMessage = loginError,
-                onLogin = viewModel::login,
-                onClearError = viewModel::clearLoginError
-            )
         } else {
             MainAppContent(
                 viewModel = viewModel,
+                userProfile = userProfile,
+                loginError = loginError,
                 currentScreen = currentScreen,
                 filteredBills = filteredBills,
                 allBills = allBills,
@@ -136,6 +133,8 @@ fun NewspaperBillingApp(viewModel: BillingViewModel = viewModel()) {
 @Composable
 private fun MainAppContent(
     viewModel: BillingViewModel,
+    userProfile: com.example.data.UserProfile,
+    loginError: String?,
     currentScreen: AppScreen,
     filteredBills: List<com.example.data.BillWithItems>,
     allBills: List<com.example.data.BillWithItems>,
@@ -151,13 +150,14 @@ private fun MainAppContent(
     when (val screen = currentScreen) {
         is AppScreen.Dashboard -> {
             DashboardScreen(
+                userName = userProfile.fullName,
                 totalBillsCount = allBills.size,
                 totalCustomersCount = allCustomers.size,
                 onOpenCentralJail = { viewModel.navigateTo(AppScreen.CentralJailHub) },
                 onOpenIgOffice = { viewModel.navigateTo(AppScreen.IgOfficeHub) },
                 onOpenCustomerBill = { viewModel.navigateTo(AppScreen.CustomerHub) },
                 onOpenSettings = { viewModel.navigateTo(AppScreen.Settings) },
-                onLogout = viewModel::logout
+                onOpenProfile = { viewModel.navigateTo(AppScreen.Profile) }
             )
         }
 
@@ -411,6 +411,26 @@ private fun MainAppContent(
                 onAddNewspaper = viewModel::addNewspaper,
                 onDeleteNewspaper = viewModel::deleteNewspaper,
                 onLogout = viewModel::logout
+            )
+        }
+
+        is AppScreen.Profile -> {
+            ProfileScreen(
+                userProfile = userProfile,
+                onBack = { viewModel.navigateTo(AppScreen.Dashboard) },
+                onSaveProfile = viewModel::updateProfile,
+                onCreateAccount = viewModel::createAccount,
+                onOpenLogin = { viewModel.navigateTo(AppScreen.Login) },
+                onLogout = viewModel::logout
+            )
+        }
+
+        is AppScreen.Login -> {
+            LoginScreen(
+                errorMessage = loginError,
+                onLogin = viewModel::login,
+                onClearError = viewModel::clearLoginError,
+                onSkipLogin = { viewModel.navigateTo(AppScreen.Profile) }
             )
         }
 

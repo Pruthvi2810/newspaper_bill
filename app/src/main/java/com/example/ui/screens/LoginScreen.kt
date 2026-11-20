@@ -80,8 +80,10 @@ import com.example.ui.theme.Terracotta
 fun LoginScreen(
     errorMessage: String?,
     onLogin: (String, String) -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onSkipLogin: () -> Unit = {}
 ) {
+    androidx.activity.compose.BackHandler(onBack = onSkipLogin)
     var username by rememberSaveable { mutableStateOf("admin") }
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
@@ -387,6 +389,17 @@ fun LoginScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "About Our Agency",
+                                color = InkNavy,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        TextButton(
+                            onClick = onSkipLogin,
+                            modifier = Modifier.testTag("login_continue_guest_button")
+                        ) {
+                            Text(
+                                text = "Continue without Login",
                                 color = InkNavy,
                                 fontWeight = FontWeight.SemiBold
                             )

@@ -6,19 +6,19 @@
     <!-- Dashboard -->
     <string name="dashboard_title">બિલિંગ ડેશબોર્ડ</string>
     <string name="select_module">મોડ્યુલ પસંદ કરો</string>
-    <string name="module_central_jail">૧. અમદાવાદ મધ્યસ્થ જેલ બિલ</string>
+    <string name="module_central_jail">અમદાવાદ મધ્યસ્થ જેલ બિલ</string>
     <string name="module_central_jail_sub">નવું બિલ બનાવો અને જૂના બિલ જુઓ</string>
-    <string name="module_ig_office">૨. IG ઓફિસ બિલ</string>
+    <string name="module_ig_office">IG ઓફિસ બિલ</string>
     <string name="module_ig_office_sub">IG ઓફિસના બિલ બનાવો અને જુઓ</string>
-    <string name="module_customer_bill">૩. ગ્રાહક બિલ</string>
+    <string name="module_customer_bill">ગ્રાહક બિલ</string>
     <string name="module_customer_bill_sub">ગ્રાહક યાદી, શોધ અને બિલિંગ</string>
-    <string name="module_settings">૪. સેટિંગ્સ</string>
+    <string name="module_settings">સેટિંગ્સ</string>
     <string name="module_settings_sub">ભાષા, સમાચારપત્રો અને એજન્સી વિગત</string>
 
     <!-- Sub-modules -->
-    <string name="sub_create_new_bill">૧. નવું બિલ બનાવો</string>
-    <string name="sub_bill_history">૨. જૂના બિલ (History)</string>
-    <string name="sub_customers_directory">૩. ગ્રાહક યાદી</string>
+    <string name="sub_create_new_bill">નવું બિલ બનાવો</string>
+    <string name="sub_bill_history">જૂના બિલ (History)</string>
+    <string name="sub_customers_directory">ગ્રાહક યાદી</string>
     <string name="fixed_customer">નિશ્ચિત ગ્રાહક</string>
 
     <!-- Settings & Language -->

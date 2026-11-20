@@ -11,6 +11,7 @@ import com.example.data.BillWithItems
 import com.example.data.BillingRepository
 import com.example.data.CustomerEntity
 import com.example.data.NewspaperEntity
+import com.example.data.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,8 @@ sealed interface AppScreen {
     data object CustomerHistory : AppScreen
     data object CustomerDirectory : AppScreen
     data object Settings : AppScreen
+    data object Profile : AppScreen
+    data object Login : AppScreen
     data object CreateEditBill : AppScreen
     data class BillPreview(val billId: Long) : AppScreen
 }
@@ -122,6 +125,12 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = false
+    )
+
+    val userProfile: StateFlow<UserProfile> = authPreferences.userProfile.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = UserProfile()
     )
 
     private val _loginError = MutableStateFlow<String?>(null)
@@ -242,9 +251,27 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
             val success = authPreferences.authenticate(username, password)
             if (success) {
                 _loginError.value = null
+                _snackbarMessage.value = "Signed in successfully."
+                _currentScreen.value = AppScreen.Dashboard
             } else {
                 _loginError.value = "Invalid username or password. Default: admin / admin123"
             }
+        }
+    }
+
+    fun createAccount(fullName: String, username: String, password: String, phone: String, email: String) {
+        if (fullName.isBlank() || username.isBlank() || password.isBlank()) return
+        viewModelScope.launch {
+            authPreferences.createAccount(fullName, username, password, phone, email)
+            _snackbarMessage.value = "Account created for $fullName."
+            _currentScreen.value = AppScreen.Profile
+        }
+    }
+
+    fun updateProfile(fullName: String, phone: String, email: String, role: String) {
+        viewModelScope.launch {
+            authPreferences.updateProfile(fullName, phone, email, role)
+            _snackbarMessage.value = "Profile updated."
         }
     }
 
@@ -255,6 +282,7 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
     fun logout() {
         viewModelScope.launch {
             authPreferences.logout()
+            _snackbarMessage.value = "Signed out. Continuing in guest mode."
             _currentScreen.value = AppScreen.Dashboard
         }
     }
