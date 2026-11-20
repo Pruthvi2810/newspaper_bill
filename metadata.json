@@ -1,0 +1,6 @@
+{
+  "name": "Newspaper Billing Manager",
+  "description": "Native Android newspaper billing, invoice management, customer directory, and PDF printing app with Gujarati and English support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

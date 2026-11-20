@@ -1,0 +1,620 @@
+package com.example.ui.screens
+
+import android.app.DatePickerDialog
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Preview
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import com.example.data.BillEntity
+import com.example.data.CustomerEntity
+import com.example.data.NewspaperEntity
+import com.example.ui.BillFormState
+import com.example.ui.BillLineItemDraft
+import com.example.ui.theme.InkNavy
+import com.example.util.Formatters
+import java.util.Calendar
+
+private val MONTH_NAMES = listOf(
+    "January (01)", "February (02)", "March (03)", "April (04)",
+    "May (05)", "June (06)", "July (07)", "August (08)",
+    "September (09)", "October (10)", "November (11)", "December (12)"
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateBillScreen(
+    formState: BillFormState,
+    customers: List<CustomerEntity>,
+    newspapers: List<NewspaperEntity>,
+    onBack: () -> Unit,
+    onMonthChange: (Int) -> Unit,
+    onBillNumberChange: (String) -> Unit,
+    onCustomerNameChange: (String) -> Unit,
+    onSelectCustomer: (CustomerEntity) -> Unit,
+    onDateChange: (Long) -> Unit,
+    onPaymentStatusChange: (String) -> Unit,
+    onItemNewspaperChange: (Int, String, Double?) -> Unit,
+    onItemPrice1Change: (Int, String) -> Unit,
+    onItemQty1Change: (Int, String) -> Unit,
+    onItemPrice2Change: (Int, String) -> Unit,
+    onItemQty2Change: (Int, String) -> Unit,
+    onAddItem: () -> Unit,
+    onRemoveItem: (Int) -> Unit,
+    onSaveAndPreview: () -> Unit
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    var customerDropdownExpanded by remember { mutableStateOf(false) }
+    var monthDropdownExpanded by remember { mutableStateOf(false) }
+
+    fun openDatePicker() {
+        val cal = Calendar.getInstance().apply { timeInMillis = formState.billDateMillis }
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                val picked = Calendar.getInstance().apply {
+                    set(year, month, day, 12, 0, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                onDateChange(picked.timeInMillis)
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    val screenTitle = when {
+        formState.editingBillId != 0L -> "Edit Bill"
+        formState.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL -> "Central Jail - New Bill"
+        formState.billCategory == BillEntity.CATEGORY_IG_OFFICE -> "IG Office - New Bill"
+        else -> "Customer - New Bill"
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(screenTitle, fontWeight = FontWeight.Bold, color = Color.White) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = InkNavy)
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Bill Metadata Card
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Bill Details / બિલ વિગત",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = InkNavy,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // Customer Name (Fixed for Central Jail, editable/dropdown for others)
+                    if (formState.isCustomerNameFixed) {
+                        OutlinedTextField(
+                            value = formState.customerName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Customer Name (Fixed)") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("bill_customer_name_fixed")
+                        )
+                    } else {
+                        ExposedDropdownMenuBox(
+                            expanded = customerDropdownExpanded && customers.isNotEmpty(),
+                            onExpandedChange = { customerDropdownExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = formState.customerName,
+                                onValueChange = {
+                                    onCustomerNameChange(it)
+                                    customerDropdownExpanded = true
+                                },
+                                label = { Text("Customer Name / ગ્રાહકનું નામ") },
+                                trailingIcon = {
+                                    if (customers.isNotEmpty()) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerDropdownExpanded)
+                                    }
+                                },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(MenuAnchorType.PrimaryEditable)
+                                    .testTag("bill_customer_name_input")
+                            )
+
+                            val matchingCustomers = remember(customers, formState.customerName) {
+                                val q = formState.customerName.trim().lowercase()
+                                if (q.isEmpty()) customers
+                                else customers.filter {
+                                    it.name.lowercase().contains(q) || it.phone.contains(q)
+                                }
+                            }
+
+                            if (matchingCustomers.isNotEmpty()) {
+                                ExposedDropdownMenu(
+                                    expanded = customerDropdownExpanded,
+                                    onDismissRequest = { customerDropdownExpanded = false }
+                                ) {
+                                    matchingCustomers.take(6).forEach { customer ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Text(customer.name, fontWeight = FontWeight.Medium)
+                                                    if (customer.phone.isNotBlank()) {
+                                                        Text(
+                                                            customer.phone,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onClick = {
+                                                onSelectCustomer(customer)
+                                                customerDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Month Selector Dropdown
+                    ExposedDropdownMenuBox(
+                        expanded = monthDropdownExpanded,
+                        onExpandedChange = { monthDropdownExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = MONTH_NAMES[(formState.billMonth - 1).coerceIn(0, 11)],
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Select Month of Bill / મહિનો પસંદ કરો") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = monthDropdownExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                .testTag("bill_month_dropdown")
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = monthDropdownExpanded,
+                            onDismissRequest = { monthDropdownExpanded = false }
+                        ) {
+                            MONTH_NAMES.forEachIndexed { idx, monthLabel ->
+                                DropdownMenuItem(
+                                    text = { Text(monthLabel) },
+                                    onClick = {
+                                        onMonthChange(idx + 1)
+                                        monthDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Bill Number & Bill Date Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = formState.billNumber,
+                            onValueChange = onBillNumberChange,
+                            label = { Text("Bill No.") },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("bill_number_input")
+                        )
+
+                        OutlinedButton(
+                            onClick = { openDatePicker() },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .padding(top = 4.dp)
+                                .testTag("bill_date_button")
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(Formatters.formatDate(formState.billDateMillis))
+                        }
+                    }
+
+                    // Payment Status
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(text = "Status:", style = MaterialTheme.typography.labelLarge)
+                        FilterChip(
+                            selected = formState.paymentStatus == BillEntity.PAYMENT_UNPAID,
+                            onClick = { onPaymentStatusChange(BillEntity.PAYMENT_UNPAID) },
+                            label = { Text("Unpaid") }
+                        )
+                        FilterChip(
+                            selected = formState.paymentStatus == BillEntity.PAYMENT_PAID,
+                            onClick = { onPaymentStatusChange(BillEntity.PAYMENT_PAID) },
+                            label = { Text("Paid") }
+                        )
+                    }
+                }
+            }
+
+            // Newspaper Entries
+            Text(
+                text = if (formState.usesDualRate) {
+                    "Newspaper Entries (Dual Rate & Qty)"
+                } else {
+                    "Newspaper Entries (Price × Quantity)"
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = InkNavy,
+                fontWeight = FontWeight.Bold
+            )
+
+            formState.items.forEachIndexed { index, item ->
+                DualRateNewspaperCard(
+                    index = index + 1,
+                    item = item,
+                    newspapers = newspapers,
+                    usesDualRate = formState.usesDualRate,
+                    canRemove = formState.items.size > 1,
+                    onNewspaperChange = { name, price -> onItemNewspaperChange(item.id, name, price) },
+                    onPrice1Change = { onItemPrice1Change(item.id, it) },
+                    onQty1Change = { onItemQty1Change(item.id, it) },
+                    onPrice2Change = { onItemPrice2Change(item.id, it) },
+                    onQty2Change = { onItemQty2Change(item.id, it) },
+                    onRemove = { onRemoveItem(item.id) }
+                )
+            }
+
+            OutlinedButton(
+                onClick = onAddItem,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("add_newspaper_button"),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Another Newspaper", style = MaterialTheme.typography.labelLarge)
+            }
+
+            // Grand Total Summary
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Grand Total / કુલ રકમ",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = Formatters.formatCurrency(formState.grandTotal),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.testTag("bill_grand_total_text")
+                    )
+                }
+            }
+
+            if (formState.errorMessage != null) {
+                Text(
+                    text = formState.errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Button(
+                onClick = onSaveAndPreview,
+                enabled = !formState.isSaving,
+                colors = ButtonDefaults.buttonColors(containerColor = InkNavy),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag("save_preview_bill_button"),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.Preview, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (formState.editingBillId == 0L) "Save & Preview Bill" else "Update & Preview Bill",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DualRateNewspaperCard(
+    index: Int,
+    item: BillLineItemDraft,
+    newspapers: List<NewspaperEntity>,
+    usesDualRate: Boolean,
+    canRemove: Boolean,
+    onNewspaperChange: (String, Double?) -> Unit,
+    onPrice1Change: (String) -> Unit,
+    onQty1Change: (String) -> Unit,
+    onPrice2Change: (String) -> Unit,
+    onQty2Change: (String) -> Unit,
+    onRemove: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Newspaper #$index",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = InkNavy
+                )
+                if (canRemove) {
+                    IconButton(onClick = onRemove) {
+                        Icon(
+                            Icons.Default.DeleteOutline,
+                            contentDescription = "Remove Newspaper $index",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it }
+            ) {
+                OutlinedTextField(
+                    value = item.newspaperName,
+                    onValueChange = { onNewspaperChange(it, null) },
+                    label = { Text("Select Newspaper from Database") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryEditable)
+                        .testTag("newspaper_name_input_$index")
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    newspapers.forEach { paper ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(paper.name)
+                                    Text(
+                                        Formatters.formatCurrency(paper.defaultPrice),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onNewspaperChange(paper.name, paper.defaultPrice)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Rate 1 & Quantity 1 (or single Price & Quantity for IG Office / Customer)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = item.price1Text,
+                    onValueChange = onPrice1Change,
+                    label = { Text(if (usesDualRate) "Price 1 (₹)" else "Price (₹)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("newspaper_price1_input_$index")
+                )
+                OutlinedTextField(
+                    value = item.quantity1Text,
+                    onValueChange = onQty1Change,
+                    label = { Text(if (usesDualRate) "Quantity 1" else "Quantity") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("newspaper_qty1_input_$index")
+                )
+            }
+
+            if (usesDualRate) {
+                Text(
+                    text = "Amount 1: ${item.quantity1} × ₹${Formatters.formatPlainAmount(item.price1)} = ₹${Formatters.formatPlainAmount(item.amount1)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Rate 2 & Quantity 2
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = item.price2Text,
+                        onValueChange = onPrice2Change,
+                        label = { Text("Price 2 (₹)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("newspaper_price2_input_$index")
+                    )
+                    OutlinedTextField(
+                        value = item.quantity2Text,
+                        onValueChange = onQty2Change,
+                        label = { Text("Quantity 2") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("newspaper_qty2_input_$index")
+                    )
+                }
+                Text(
+                    text = "Amount 2: ${item.quantity2} × ₹${Formatters.formatPlainAmount(item.price2)} = ₹${Formatters.formatPlainAmount(item.amount2)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Text(
+                    text = "Amount: ${item.quantity1} × ₹${Formatters.formatPlainAmount(item.price1)} = ₹${Formatters.formatPlainAmount(item.amount1)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Newspaper Total",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    text = Formatters.formatCurrency(item.itemTotal),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = InkNavy
+                )
+            }
+        }
+    }
+}
