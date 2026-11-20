@@ -34,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -43,6 +44,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -181,8 +184,7 @@ fun BillPreviewScreen(
 
                 OutlinedButton(
                     onClick = {
-                        val safeName = bill.billNumber.replace("/", "_")
-                        pdfExportLauncher.launch("Pruthvi_Invoice_$safeName.pdf")
+                        pdfExportLauncher.launch(InvoicePdfGenerator.buildInvoiceFileName(bill))
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -260,12 +262,15 @@ fun PruthviInvoiceTemplate(
         shadowElevation = 3.dp,
         shape = RoundedCornerShape(4.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        CompositionLocalProvider(
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = FontFamily.Serif)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
             // 1. Top Note & Proprietor Box
             Column(
                 modifier = Modifier
@@ -543,6 +548,7 @@ fun PruthviInvoiceTemplate(
                     .padding(end = 4.dp)
             )
             HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+            }
         }
     }
 }

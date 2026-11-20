@@ -63,6 +63,20 @@ object Formatters {
 
 object InvoicePdfGenerator {
 
+    fun buildInvoiceFileName(bill: BillEntity): String {
+        val monthYear = SimpleDateFormat("MMM_yyyy", Locale.ENGLISH).format(Date(bill.billDateMillis))
+        val rawSuffix = when (bill.billCategory) {
+            BillEntity.CATEGORY_CENTRAL_JAIL -> "Central_Jail"
+            BillEntity.CATEGORY_IG_OFFICE -> "IG_Office"
+            else -> bill.customerName.trim().ifBlank { "Customer" }
+        }
+        val safeSuffix = rawSuffix
+            .replace(Regex("[^A-Za-z0-9]+"), "_")
+            .trim('_')
+            .ifBlank { "Customer" }
+        return "${monthYear}_${safeSuffix}.pdf"
+    }
+
     fun createPdfDocument(
         billWithItems: BillWithItems,
         options: PdfPrintOptions = PdfPrintOptions()
@@ -140,7 +154,7 @@ object InvoicePdfGenerator {
         options: PdfPrintOptions = PdfPrintOptions()
     ) {
         val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager ?: return
-        val jobName = "Pruthvi_Invoice_${billWithItems.bill.billNumber.replace("/", "_")}"
+        val jobName = buildInvoiceFileName(billWithItems.bill).removeSuffix(".pdf")
         val mediaSize = if (options.orientation == PageOrientation.LANDSCAPE) {
             PrintAttributes.MediaSize.ISO_A4.asLandscape()
         } else {
@@ -161,8 +175,8 @@ object InvoicePdfGenerator {
     ): Result<Unit> {
         return try {
             val invoicesDir = java.io.File(context.cacheDir, "invoices").apply { mkdirs() }
-            val safeBillNo = billWithItems.bill.billNumber.replace("/", "_").replace(" ", "_")
-            val pdfFile = java.io.File(invoicesDir, "Pruthvi_Invoice_$safeBillNo.pdf")
+            val fileName = buildInvoiceFileName(billWithItems.bill)
+            val pdfFile = java.io.File(invoicesDir, fileName)
             val document = createPdfDocument(billWithItems, options)
             FileOutputStream(pdfFile).use { out ->
                 document.writeTo(out)
@@ -264,20 +278,20 @@ object InvoicePdfGenerator {
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = pinkColor
             textSize = 20f
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
         val boldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = pinkColor
             textSize = 11f
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
         }
         val boldCenterPaint = Paint(boldPaint).apply { textAlign = Paint.Align.CENTER }
         val boldRightPaint = Paint(boldPaint).apply { textAlign = Paint.Align.RIGHT }
         val normalPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = pinkColor
             textSize = 10.5f
-            typeface = Typeface.SANS_SERIF
+            typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         }
         val normalCenterPaint = Paint(normalPaint).apply { textAlign = Paint.Align.CENTER }
         val normalRightPaint = Paint(normalPaint).apply { textAlign = Paint.Align.RIGHT }
