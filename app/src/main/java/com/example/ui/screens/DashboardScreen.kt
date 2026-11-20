@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
@@ -81,13 +82,13 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Pruthvi News Agency",
+                                text = stringResource(R.string.agency_name),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                             Text(
-                                text = "News at Your Doorstep...",
+                                text = stringResource(R.string.agency_tagline),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = Color.White.copy(alpha = 0.8f)
                             )
@@ -134,7 +135,7 @@ fun DashboardScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Billing Dashboard",
+                            text = stringResource(R.string.dashboard_title),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -161,15 +162,15 @@ fun DashboardScreen(
             }
 
             Text(
-                text = "Select Module / મોડ્યુલ પસંદ કરો",
+                text = stringResource(R.string.select_module),
                 style = MaterialTheme.typography.titleMedium,
                 color = InkNavy,
                 fontWeight = FontWeight.Bold
             )
 
             DashboardModuleCard(
-                title = "1. Ahmedabad Central Jail Bill",
-                subtitle = "અમદાવાદ મધ્યસ્થ જેલ બિલ • Create Bill & History",
+                title = stringResource(R.string.module_central_jail),
+                subtitle = stringResource(R.string.module_central_jail_sub),
                 icon = Icons.Default.AccountBalance,
                 accentColor = InkNavy,
                 onClick = onOpenCentralJail,
@@ -177,8 +178,8 @@ fun DashboardScreen(
             )
 
             DashboardModuleCard(
-                title = "2. IG Office Bill",
-                subtitle = "IG ઓફિસ બિલ • Create & Manage IG Office Bills",
+                title = stringResource(R.string.module_ig_office),
+                subtitle = stringResource(R.string.module_ig_office_sub),
                 icon = Icons.Default.Gavel,
                 accentColor = Terracotta,
                 onClick = onOpenIgOffice,
@@ -186,8 +187,8 @@ fun DashboardScreen(
             )
 
             DashboardModuleCard(
-                title = "3. Customer Bill",
-                subtitle = "ગ્રાહક બિલ • Customer Directory, Search & Billing",
+                title = stringResource(R.string.module_customer_bill),
+                subtitle = stringResource(R.string.module_customer_bill_sub),
                 icon = Icons.Default.People,
                 accentColor = Color(0xFF1B7A43),
                 onClick = onOpenCustomerBill,
@@ -195,8 +196,8 @@ fun DashboardScreen(
             )
 
             DashboardModuleCard(
-                title = "4. Settings",
-                subtitle = "સેટિંગ્સ • Newspapers, Default Rates & Agency Info",
+                title = stringResource(R.string.module_settings),
+                subtitle = stringResource(R.string.module_settings_sub),
                 icon = Icons.Default.Settings,
                 accentColor = Color(0xFF5A6270),
                 onClick = onOpenSettings,

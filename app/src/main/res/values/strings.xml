@@ -1,3 +1,33 @@
 <resources>
     <string name="app_name">Newspaper Billing Manager</string>
+    <string name="agency_name">Pruthvi News Agency</string>
+    <string name="agency_tagline">News at Your Doorstep...</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_title">Billing Dashboard</string>
+    <string name="select_module">Select Module</string>
+    <string name="module_central_jail">1. Ahmedabad Central Jail Bill</string>
+    <string name="module_central_jail_sub">Create New Bill &amp; Bill History</string>
+    <string name="module_ig_office">2. IG Office Bill</string>
+    <string name="module_ig_office_sub">Create &amp; Manage IG Office Bills</string>
+    <string name="module_customer_bill">3. Customer Bill</string>
+    <string name="module_customer_bill_sub">Customer Directory, Search &amp; Billing</string>
+    <string name="module_settings">4. Settings</string>
+    <string name="module_settings_sub">Language, Newspapers &amp; Agency Info</string>
+
+    <!-- Sub-modules -->
+    <string name="sub_create_new_bill">1. Create New Bill</string>
+    <string name="sub_bill_history">2. Bill History</string>
+    <string name="sub_customers_directory">3. Customers Directory</string>
+    <string name="fixed_customer">Fixed Customer</string>
+
+    <!-- Settings & Language -->
+    <string name="settings_title">Settings</string>
+    <string name="language_section_title">App Language</string>
+    <string name="language_section_subtitle">Switch interface between English and Gujarati</string>
+    <string name="language_english">English</string>
+    <string name="language_gujarati">ગુજરાતી (Gujarati)</string>
+    <string name="newspapers_database">Newspapers Database</string>
+    <string name="add_button">Add</string>
+    <string name="logout_button">Logout</string>
 </resources>

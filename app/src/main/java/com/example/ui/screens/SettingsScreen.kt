@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -20,12 +21,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,12 +47,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.data.NewspaperEntity
 import com.example.ui.theme.InkNavy
 import com.example.util.Formatters
+import com.example.util.LocaleHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,12 +69,28 @@ fun SettingsScreen(
     onLogout: () -> Unit
 ) {
     BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    var currentLang by remember { mutableStateOf(LocaleHelper.getSavedLanguage(context)) }
     var showAddDialog by remember { mutableStateOf(false) }
+
+    fun switchLanguage(langCode: String) {
+        if (langCode != currentLang) {
+            currentLang = langCode
+            LocaleHelper.saveLanguage(context, langCode)
+            (context as? Activity)?.recreate()
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold, color = Color.White) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.settings_title),
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -88,6 +112,76 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
+                // Language Toggle Card (English / Gujarati)
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Translate,
+                                contentDescription = null,
+                                tint = InkNavy
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.language_section_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = InkNavy
+                                )
+                                Text(
+                                    text = stringResource(R.string.language_section_subtitle),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            FilterChip(
+                                selected = currentLang == LocaleHelper.LANG_ENGLISH,
+                                onClick = { switchLanguage(LocaleHelper.LANG_ENGLISH) },
+                                label = {
+                                    Text(
+                                        text = stringResource(R.string.language_english),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("lang_toggle_english")
+                            )
+                            FilterChip(
+                                selected = currentLang == LocaleHelper.LANG_GUJARATI,
+                                onClick = { switchLanguage(LocaleHelper.LANG_GUJARATI) },
+                                label = {
+                                    Text(
+                                        text = stringResource(R.string.language_gujarati),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("lang_toggle_gujarati")
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
                 Card(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -100,7 +194,7 @@ fun SettingsScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "Pruthvi News Agency",
+                            text = stringResource(R.string.agency_name),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = InkNavy
@@ -123,7 +217,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Newspapers Database (${newspapers.size})",
+                        text = "${stringResource(R.string.newspapers_database)} (${newspapers.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = InkNavy
@@ -134,7 +228,7 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add")
+                        Text(stringResource(R.string.add_button))
                     }
                 }
             }
@@ -182,7 +276,7 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Logout", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.logout_button), fontWeight = FontWeight.Bold)
                 }
             }
         }

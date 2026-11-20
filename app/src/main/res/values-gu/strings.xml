@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">Newspaper Billing Manager</string>
+    <string name="agency_name">પૃથ્વી ન્યુઝ એજન્સી</string>
+    <string name="agency_tagline">સમાચાર તમારા દ્વારે...</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_title">બિલિંગ ડેશબોર્ડ</string>
+    <string name="select_module">મોડ્યુલ પસંદ કરો</string>
+    <string name="module_central_jail">૧. અમદાવાદ મધ્યસ્થ જેલ બિલ</string>
+    <string name="module_central_jail_sub">નવું બિલ બનાવો અને જૂના બિલ જુઓ</string>
+    <string name="module_ig_office">૨. IG ઓફિસ બિલ</string>
+    <string name="module_ig_office_sub">IG ઓફિસના બિલ બનાવો અને જુઓ</string>
+    <string name="module_customer_bill">૩. ગ્રાહક બિલ</string>
+    <string name="module_customer_bill_sub">ગ્રાહક યાદી, શોધ અને બિલિંગ</string>
+    <string name="module_settings">૪. સેટિંગ્સ</string>
+    <string name="module_settings_sub">ભાષા, સમાચારપત્રો અને એજન્સી વિગત</string>
+
+    <!-- Sub-modules -->
+    <string name="sub_create_new_bill">૧. નવું બિલ બનાવો</string>
+    <string name="sub_bill_history">૨. જૂના બિલ (History)</string>
+    <string name="sub_customers_directory">૩. ગ્રાહક યાદી</string>
+    <string name="fixed_customer">નિશ્ચિત ગ્રાહક</string>
+
+    <!-- Settings & Language -->
+    <string name="settings_title">સેટિંગ્સ</string>
+    <string name="language_section_title">એપ્લિકેશન ભાષા (Language)</string>
+    <string name="language_section_subtitle">અંગ્રેજી અને ગુજરાતી ભાષા બદલો</string>
+    <string name="language_english">English</string>
+    <string name="language_gujarati">ગુજરાતી</string>
+    <string name="newspapers_database">સમાચારપત્ર ડેટાબેઝ</string>
+    <string name="add_button">ઉમેરો</string>
+    <string name="logout_button">લોગઆઉટ</string>
+</resources>
