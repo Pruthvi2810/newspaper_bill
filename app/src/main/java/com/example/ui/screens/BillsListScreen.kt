@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.BillEntity
 import com.example.data.BillWithItems
+import com.example.data.NewspaperEntity
 import com.example.ui.BillFilterState
 import com.example.ui.DateRangeFilter
 import com.example.ui.PaymentStatusFilter
@@ -70,6 +71,7 @@ import java.util.Calendar
 @Composable
 fun BillsListScreen(
     bills: List<BillWithItems>,
+    allNewspapers: List<NewspaperEntity> = emptyList(),
     filterState: BillFilterState,
     onSearchChange: (String) -> Unit,
     onPaymentFilterChange: (PaymentStatusFilter) -> Unit,
@@ -303,6 +305,7 @@ fun BillsListScreen(
                 items(bills, key = { it.bill.id }) { billWithItems ->
                     BillCard(
                         billWithItems = billWithItems,
+                        allNewspapers = allNewspapers,
                         onClick = { onBillClick(billWithItems) },
                         onEdit = { onEditBill(billWithItems) },
                         onTogglePaid = { onTogglePaid(billWithItems.bill) },
@@ -374,6 +377,7 @@ private fun SummaryMetricCard(
 @Composable
 private fun BillCard(
     billWithItems: BillWithItems,
+    allNewspapers: List<NewspaperEntity>,
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onTogglePaid: () -> Unit,
@@ -456,7 +460,15 @@ private fun BillCard(
 
                 val cardContext = LocalContext.current
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { InvoicePdfGenerator.shareInvoicePdf(cardContext, billWithItems) }) {
+                    IconButton(
+                        onClick = {
+                            InvoicePdfGenerator.shareInvoicePdf(
+                                context = cardContext,
+                                billWithItems = billWithItems,
+                                allNewspapers = allNewspapers
+                            )
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share Bill",

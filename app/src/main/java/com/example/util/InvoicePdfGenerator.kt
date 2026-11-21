@@ -1,51 +1,41 @@
 package com.example.util
 
+import android.content.ContentValues
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
-import android.os.Bundle
-import android.os.CancellationSignal
-import android.os.ParcelFileDescriptor
-import android.print.PageRange
-import android.print.PrintAttributes
-import android.print.PrintDocumentAdapter
-import android.print.PrintDocumentInfo
-import android.print.PrintManager
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import com.example.data.BillEntity
 import com.example.data.BillWithItems
+import com.example.data.NewspaperEntity
 import java.io.FileOutputStream
 import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.roundToInt
+import kotlin.math.max
 
-enum class PageOrientation {
-    PORTRAIT,
-    LANDSCAPE
-}
-
-data class PdfPrintOptions(
-    val orientation: PageOrientation = PageOrientation.PORTRAIT,
-    val marginPoints: Float = 24f
-) {
-    val pageWidth: Int
-        get() = if (orientation == PageOrientation.PORTRAIT) 595 else 842
-
-    val pageHeight: Int
-        get() = if (orientation == PageOrientation.PORTRAIT) 842 else 595
-
-    val clampedMargin: Float
-        get() = marginPoints.coerceIn(12f, 64f)
-}
+data class InvoiceDisplayRow(
+    val newspaperName: String,
+    val isDualRate: Boolean,
+    val copy1: String,
+    val rate1: String,
+    val amount1: String,
+    val copy2: String = "",
+    val rate2: String = "",
+    val amount2: String = ""
+)
 
 object Formatters {
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
@@ -62,6 +52,9 @@ object Formatters {
 }
 
 object InvoicePdfGenerator {
+    private const val PAGE_WIDTH = 595 // A4 width in points
+    private const val PAGE_HEIGHT = 842 // A4 height in points
+    private const val MARGIN = 24f
 
     fun buildInvoiceFileName(bill: BillEntity): String {
         val monthYear = SimpleDateFormat("MMM_yyyy", Locale.ENGLISH).format(Date(bill.billDateMillis))
@@ -77,67 +70,96 @@ object InvoicePdfGenerator {
         return "${monthYear}_${safeSuffix}.pdf"
     }
 
-    fun createPdfDocument(
+    fun buildDisplayRows(
         billWithItems: BillWithItems,
-        options: PdfPrintOptions = PdfPrintOptions()
-    ): PdfDocument {
-        val pdfDocument = PdfDocument()
-        drawPruthviInvoicePages(pdfDocument, billWithItems, options)
-        return pdfDocument
+        allNewspapers: List<NewspaperEntity> = emptyList()
+    ): List<InvoiceDisplayRow> {
+        val bill = billWithItems.bill
+        val items = billWithItems.items
+        val isDualRate = bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL
+
+        if (bill.billCategory == BillEntity.CATEGORY_CUSTOMER && allNewspapers.isNotEmpty()) {
+            val matchedItemIds = mutableSetOf<Long>()
+            val rows = mutableListOf<InvoiceDisplayRow>()
+
+            for (paper in allNewspapers) {
+                val match = items.firstOrNull {
+                    it.newspaperName.trim().equals(paper.name.trim(), ignoreCase = true)
+                }
+                if (match != null) {
+                    matchedItemIds.add(match.id)
+                    rows.add(
+                        InvoiceDisplayRow(
+                            newspaperName = match.newspaperName,
+                            isDualRate = false,
+                            copy1 = match.quantity1.toString(),
+                            rate1 = Formatters.formatPlainAmount(match.price1),
+                            amount1 = Formatters.formatPlainAmount(match.amount1)
+                        )
+                    )
+                } else {
+                    rows.add(
+                        InvoiceDisplayRow(
+                            newspaperName = paper.name,
+                            isDualRate = false,
+                            copy1 = "-",
+                            rate1 = "-",
+                            amount1 = "-"
+                        )
+                    )
+                }
+            }
+
+            // Include any bill items whose newspaper was later removed from Settings DB
+            for (item in items) {
+                if (item.id !in matchedItemIds &&
+                    rows.none { it.newspaperName.trim().equals(item.newspaperName.trim(), ignoreCase = true) }
+                ) {
+                    rows.add(
+                        InvoiceDisplayRow(
+                            newspaperName = item.newspaperName,
+                            isDualRate = false,
+                            copy1 = item.quantity1.toString(),
+                            rate1 = Formatters.formatPlainAmount(item.price1),
+                            amount1 = Formatters.formatPlainAmount(item.amount1)
+                        )
+                    )
+                }
+            }
+            return rows
+        }
+
+        return items.map { item ->
+            InvoiceDisplayRow(
+                newspaperName = item.newspaperName,
+                isDualRate = isDualRate,
+                copy1 = if (isDualRate) Formatters.formatQty(item.quantity1) else item.quantity1.toString(),
+                rate1 = Formatters.formatPlainAmount(item.price1),
+                amount1 = Formatters.formatPlainAmount(item.amount1),
+                copy2 = Formatters.formatQty(item.quantity2),
+                rate2 = Formatters.formatPlainAmount(item.price2),
+                amount2 = Formatters.formatPlainAmount(item.amount2)
+            )
+        }
     }
 
-    fun renderPreviewBitmap(
+    fun createPdfDocument(
         billWithItems: BillWithItems,
-        options: PdfPrintOptions = PdfPrintOptions(),
-        maxDimensionPx: Int = 900
-    ): Bitmap {
-        val pageWidth = options.pageWidth
-        val pageHeight = options.pageHeight
-        val scale = maxDimensionPx.toFloat() / maxOf(pageWidth, pageHeight).toFloat()
-        val bmpWidth = (pageWidth * scale).roundToInt().coerceAtLeast(1)
-        val bmpHeight = (pageHeight * scale).roundToInt().coerceAtLeast(1)
-
-        val bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.WHITE)
-        canvas.save()
-        canvas.scale(scale, scale)
-
-        // Subtle dashed margin guide so users can visually inspect page margins
-        val margin = options.clampedMargin
-        val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#CBD5E1")
-            style = Paint.Style.STROKE
-            strokeWidth = 1f
-            pathEffect = DashPathEffect(floatArrayOf(5f, 4f), 0f)
-        }
-        canvas.drawRect(
-            margin,
-            margin,
-            pageWidth - margin,
-            pageHeight - margin,
-            guidePaint
-        )
-
-        drawInvoicePage(
-            canvas = canvas,
-            billWithItems = billWithItems,
-            options = options,
-            startIndex = 0,
-            isFirstPage = true
-        )
-        canvas.restore()
-        return bitmap
+        allNewspapers: List<NewspaperEntity> = emptyList()
+    ): PdfDocument {
+        val pdfDocument = PdfDocument()
+        drawPruthviInvoicePages(pdfDocument, billWithItems, allNewspapers)
+        return pdfDocument
     }
 
     fun writeInvoicePdfToUri(
         context: Context,
         uri: Uri,
         billWithItems: BillWithItems,
-        options: PdfPrintOptions = PdfPrintOptions()
+        allNewspapers: List<NewspaperEntity> = emptyList()
     ): Result<Unit> {
         return try {
-            val document = createPdfDocument(billWithItems, options)
+            val document = createPdfDocument(billWithItems, allNewspapers)
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 document.writeTo(outputStream)
             } ?: return Result.failure(IllegalStateException("Unable to open output stream."))
@@ -148,36 +170,59 @@ object InvoicePdfGenerator {
         }
     }
 
-    fun printInvoice(
+    fun saveInvoiceToDownloads(
         context: Context,
         billWithItems: BillWithItems,
-        options: PdfPrintOptions = PdfPrintOptions()
-    ) {
-        val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager ?: return
-        val jobName = buildInvoiceFileName(billWithItems.bill).removeSuffix(".pdf")
-        val mediaSize = if (options.orientation == PageOrientation.LANDSCAPE) {
-            PrintAttributes.MediaSize.ISO_A4.asLandscape()
-        } else {
-            PrintAttributes.MediaSize.ISO_A4.asPortrait()
+        allNewspapers: List<NewspaperEntity> = emptyList()
+    ): Result<String> {
+        val fileName = buildInvoiceFileName(billWithItems.bill)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return Result.failure(UnsupportedOperationException("Use document picker on older Android"))
         }
-        val marginMils = (options.clampedMargin * 1000f / 72f).roundToInt()
-        val attributes = PrintAttributes.Builder()
-            .setMediaSize(mediaSize)
-            .setMinMargins(PrintAttributes.Margins(marginMils, marginMils, marginMils, marginMils))
-            .build()
-        printManager.print(jobName, InvoicePrintAdapter(billWithItems, options), attributes)
+        return try {
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_DOWNLOADS}/PruthviNewsAgency"
+                )
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                ?: return Result.failure(IllegalStateException("Could not create file in Downloads."))
+
+            val document = createPdfDocument(billWithItems, allNewspapers)
+            try {
+                resolver.openOutputStream(uri)?.use { outputStream ->
+                    document.writeTo(outputStream)
+                } ?: throw IllegalStateException("Unable to open output stream.")
+            } finally {
+                document.close()
+            }
+
+            contentValues.clear()
+            contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, contentValues, null, null)
+
+            Result.success(fileName)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     fun shareInvoicePdf(
         context: Context,
         billWithItems: BillWithItems,
-        options: PdfPrintOptions = PdfPrintOptions()
+        allNewspapers: List<NewspaperEntity> = emptyList()
     ): Result<Unit> {
         return try {
             val invoicesDir = java.io.File(context.cacheDir, "invoices").apply { mkdirs() }
             val fileName = buildInvoiceFileName(billWithItems.bill)
             val pdfFile = java.io.File(invoicesDir, fileName)
-            val document = createPdfDocument(billWithItems, options)
+            val document = createPdfDocument(billWithItems, allNewspapers)
             FileOutputStream(pdfFile).use { out ->
                 document.writeTo(out)
             }
@@ -214,32 +259,53 @@ object InvoicePdfGenerator {
         }
     }
 
+    private fun buildLayout(
+        text: String,
+        paint: TextPaint,
+        maxWidth: Int,
+        alignment: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
+    ): StaticLayout {
+        val safeWidth = maxWidth.coerceAtLeast(16)
+        return StaticLayout.Builder
+            .obtain(text, 0, text.length, paint, safeWidth)
+            .setAlignment(alignment)
+            .setIncludePad(false)
+            .setLineSpacing(2f, 1f)
+            .build()
+    }
+
+    private fun drawStaticLayout(canvas: Canvas, layout: StaticLayout, x: Float, y: Float) {
+        canvas.save()
+        canvas.translate(x, y)
+        layout.draw(canvas)
+        canvas.restore()
+    }
+
     private fun drawPruthviInvoicePages(
         pdfDocument: PdfDocument,
         billWithItems: BillWithItems,
-        options: PdfPrintOptions
+        allNewspapers: List<NewspaperEntity>
     ) {
-        val pageWidth = options.pageWidth
-        val pageHeight = options.pageHeight
+        val rows = buildDisplayRows(billWithItems, allNewspapers)
         var pageNumber = 1
-        var nextItemIndex = 0
+        var nextRowIndex = 0
         var isFirstPage = true
 
         while (true) {
             val page = pdfDocument.startPage(
-                PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
+                PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
             )
             val result = drawInvoicePage(
                 canvas = page.canvas,
                 billWithItems = billWithItems,
-                options = options,
-                startIndex = nextItemIndex,
+                rows = rows,
+                startIndex = nextRowIndex,
                 isFirstPage = isFirstPage
             )
             pdfDocument.finishPage(page)
 
             if (result.finished) break
-            nextItemIndex = result.nextItemIndex
+            nextRowIndex = result.nextItemIndex
             isFirstPage = false
             pageNumber++
         }
@@ -253,16 +319,15 @@ object InvoicePdfGenerator {
     private fun drawInvoicePage(
         canvas: Canvas,
         billWithItems: BillWithItems,
-        options: PdfPrintOptions,
+        rows: List<InvoiceDisplayRow>,
         startIndex: Int,
         isFirstPage: Boolean
     ): PageDrawResult {
         val bill = billWithItems.bill
-        val items = billWithItems.items
         val pinkColor = Color.parseColor("#E85D90")
-        val pageWidth = options.pageWidth.toFloat()
-        val pageHeight = options.pageHeight.toFloat()
-        val margin = options.clampedMargin
+        val pageWidth = PAGE_WIDTH.toFloat()
+        val pageHeight = PAGE_HEIGHT.toFloat()
+        val margin = MARGIN
         val right = pageWidth - margin
         val tableWidth = right - margin
         val col1End = margin + tableWidth * 0.40f
@@ -281,20 +346,24 @@ object InvoicePdfGenerator {
             typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        val boldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val boldPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = pinkColor
             textSize = 11f
             typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
         }
-        val boldCenterPaint = Paint(boldPaint).apply { textAlign = Paint.Align.CENTER }
-        val boldRightPaint = Paint(boldPaint).apply { textAlign = Paint.Align.RIGHT }
-        val normalPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val boldCenterPaint = TextPaint(boldPaint).apply { textAlign = Paint.Align.CENTER }
+        val boldRightPaint = TextPaint(boldPaint).apply { textAlign = Paint.Align.RIGHT }
+        val normalPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = pinkColor
             textSize = 10.5f
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         }
-        val normalCenterPaint = Paint(normalPaint).apply { textAlign = Paint.Align.CENTER }
-        val normalRightPaint = Paint(normalPaint).apply { textAlign = Paint.Align.RIGHT }
+        val normalCenterPaint = TextPaint(normalPaint).apply { textAlign = Paint.Align.CENTER }
+        val normalRightPaint = TextPaint(normalPaint).apply { textAlign = Paint.Align.RIGHT }
+
+        // StaticLayout always draws left-aligned at (0,0) unless Paint.textAlign = LEFT + Layout.Alignment
+        val boldWrapPaint = TextPaint(boldPaint).apply { textAlign = Paint.Align.LEFT }
+        val normalWrapPaint = TextPaint(normalPaint).apply { textAlign = Paint.Align.LEFT }
 
         fun drawTableHeader(startY: Float): Float {
             val headerHeight = 26f
@@ -337,53 +406,160 @@ object InvoicePdfGenerator {
             )
             y += addrBoxHeight + 4f
 
-            // 4. Customer & Bill No/Date Row
+            // 4. Customer & Bill No/Date/Due Row (with proper text wrapping and zero column overlap)
+            val isCustomerBill = bill.billCategory == BillEntity.CATEGORY_CUSTOMER
             val hasDueDates = bill.billStartDateMillis != null || bill.billEndDateMillis != null
-            val infoHeight = if (hasDueDates) 52f else 36f
             val splitX = margin + (right - margin) * 0.56f
-            canvas.drawRoundRect(RectF(margin, y, splitX - 3f, y + infoHeight), 6f, 6f, borderPaint)
+            val leftBoxRight = splitX - 3f
+            val rightBoxLeft = splitX + 3f
+            val leftTextWidth = ((leftBoxRight - margin) - 16f).toInt().coerceAtLeast(80)
+            val rightTextWidth = ((right - rightBoxLeft) - 16f).toInt().coerceAtLeast(80)
+
             val displayCustomer = if (bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL) {
                 BillEntity.CENTRAL_JAIL_GUJARATI_NAME
             } else {
                 bill.customerName
             }
-            canvas.drawText("M/s. $displayCustomer", margin + 8f, y + 18f, boldPaint)
-            if (bill.customerAddress.isNotBlank() && bill.billCategory == BillEntity.CATEGORY_CUSTOMER) {
-                canvas.drawText(bill.customerAddress, margin + 8f, y + 34f, normalPaint)
-            }
+            val customerNameLayout = buildLayout("M/s. $displayCustomer", boldWrapPaint, leftTextWidth)
 
-            canvas.drawRoundRect(RectF(splitX + 3f, y, right, y + infoHeight), 6f, 6f, borderPaint)
-            if (hasDueDates) {
-                val rowH = infoHeight / 3f
-                canvas.drawLine(splitX + 3f, y + rowH, right, y + rowH, borderPaint)
-                canvas.drawLine(splitX + 3f, y + rowH * 2f, right, y + rowH * 2f, borderPaint)
-                canvas.drawText("No. :   ${bill.billNumber}", splitX + 10f, y + 13f, boldPaint)
-                canvas.drawText("Date :  ${Formatters.formatDate(bill.billDateMillis)}", splitX + 10f, y + rowH + 13f, boldPaint)
-                val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
-                val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
-                canvas.drawText("Due : $startStr to $endStr", splitX + 10f, y + rowH * 2f + 13f, boldPaint)
+            if (isCustomerBill) {
+                // Split Customer Row into 2 distinct rows: Name & Address on left; No. & Due on right
+                val addressValue = bill.customerAddress.trim().ifBlank { "-" }
+                val addressLayout = buildLayout("Add. : $addressValue", normalWrapPaint, leftTextWidth)
+
+                val noLayout = buildLayout("No. :  ${bill.billNumber}", boldWrapPaint, rightTextWidth)
+                val dueValue = if (hasDueDates) {
+                    val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                    val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                    "Due : $startStr to $endStr"
+                } else {
+                    "Due : -"
+                }
+                val dueLayout = buildLayout(dueValue, boldWrapPaint, rightTextWidth)
+
+                val topRowHeight = max(customerNameLayout.height + 12f, noLayout.height + 12f).coerceAtLeast(22f)
+                val bottomRowHeight = max(addressLayout.height + 12f, dueLayout.height + 12f).coerceAtLeast(22f)
+                val infoHeight = topRowHeight + bottomRowHeight
+
+                // Left Box (Split into Name Row + Address Row)
+                canvas.save()
+                canvas.clipRect(margin, y, leftBoxRight, y + infoHeight)
+                canvas.drawRoundRect(RectF(margin, y, leftBoxRight, y + infoHeight), 6f, 6f, borderPaint)
+                canvas.drawLine(margin, y + topRowHeight, leftBoxRight, y + topRowHeight, borderPaint)
+                drawStaticLayout(
+                    canvas,
+                    customerNameLayout,
+                    margin + 8f,
+                    y + (topRowHeight - customerNameLayout.height) / 2f
+                )
+                drawStaticLayout(
+                    canvas,
+                    addressLayout,
+                    margin + 8f,
+                    y + topRowHeight + (bottomRowHeight - addressLayout.height) / 2f
+                )
+                canvas.restore()
+
+                // Right Box (Split into No. Row + Due Row, Date removed for Customer Bill)
+                canvas.save()
+                canvas.clipRect(rightBoxLeft, y, right, y + infoHeight)
+                canvas.drawRoundRect(RectF(rightBoxLeft, y, right, y + infoHeight), 6f, 6f, borderPaint)
+                canvas.drawLine(rightBoxLeft, y + topRowHeight, right, y + topRowHeight, borderPaint)
+                drawStaticLayout(
+                    canvas,
+                    noLayout,
+                    rightBoxLeft + 8f,
+                    y + (topRowHeight - noLayout.height) / 2f
+                )
+                drawStaticLayout(
+                    canvas,
+                    dueLayout,
+                    rightBoxLeft + 8f,
+                    y + topRowHeight + (bottomRowHeight - dueLayout.height) / 2f
+                )
+                canvas.restore()
+
+                y += infoHeight + 4f
             } else {
-                canvas.drawLine(splitX + 3f, y + infoHeight / 2f, right, y + infoHeight / 2f, borderPaint)
-                canvas.drawText("No. :   ${bill.billNumber}", splitX + 10f, y + 13f, boldPaint)
-                canvas.drawText("Date :  ${Formatters.formatDate(bill.billDateMillis)}", splitX + 10f, y + 31f, boldPaint)
+                // Central Jail & IG Office: wrapped M/s. Customer Name inside left box + No. / Date (/ Due) on right
+                val rightRowMin = if (hasDueDates) 54f else 40f
+                val leftContentHeight = customerNameLayout.height + 16f
+                val infoHeight = max(leftContentHeight, rightRowMin)
+
+                // Left Box with wrapped customer name clipped safely to left box bounds
+                canvas.save()
+                canvas.clipRect(margin, y, leftBoxRight, y + infoHeight)
+                canvas.drawRoundRect(RectF(margin, y, leftBoxRight, y + infoHeight), 6f, 6f, borderPaint)
+                drawStaticLayout(
+                    canvas,
+                    customerNameLayout,
+                    margin + 8f,
+                    y + (infoHeight - customerNameLayout.height) / 2f
+                )
+                canvas.restore()
+
+                // Right Box
+                canvas.save()
+                canvas.clipRect(rightBoxLeft, y, right, y + infoHeight)
+                canvas.drawRoundRect(RectF(rightBoxLeft, y, right, y + infoHeight), 6f, 6f, borderPaint)
+                if (hasDueDates) {
+                    val rowH = infoHeight / 3f
+                    canvas.drawLine(rightBoxLeft, y + rowH, right, y + rowH, borderPaint)
+                    canvas.drawLine(rightBoxLeft, y + rowH * 2f, right, y + rowH * 2f, borderPaint)
+                    canvas.drawText("No. :   ${bill.billNumber}", rightBoxLeft + 8f, y + rowH * 0.68f, boldPaint)
+                    canvas.drawText(
+                        "Date :  ${Formatters.formatDate(bill.billDateMillis)}",
+                        rightBoxLeft + 8f,
+                        y + rowH + rowH * 0.68f,
+                        boldPaint
+                    )
+                    val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                    val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                    canvas.drawText(
+                        "Due : $startStr to $endStr",
+                        rightBoxLeft + 8f,
+                        y + rowH * 2f + rowH * 0.68f,
+                        boldPaint
+                    )
+                } else {
+                    val rowH = infoHeight / 2f
+                    canvas.drawLine(rightBoxLeft, y + rowH, right, y + rowH, borderPaint)
+                    canvas.drawText("No. :   ${bill.billNumber}", rightBoxLeft + 8f, y + rowH * 0.68f, boldPaint)
+                    canvas.drawText(
+                        "Date :  ${Formatters.formatDate(bill.billDateMillis)}",
+                        rightBoxLeft + 8f,
+                        y + rowH + rowH * 0.68f,
+                        boldPaint
+                    )
+                }
+                canvas.restore()
+
+                y += infoHeight + 4f
             }
-            y += infoHeight + 4f
         }
 
         // 5. Table Header
         y = drawTableHeader(y)
 
         // 6. Table Rows
-        val isDualRateBill = bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL
         val subRowHeight = 22f
-        val singleRowHeight = 28f
+        val singleRowMinHeight = 26f
+        val paperColWidth = ((col1End - margin) - 8f).toInt().coerceAtLeast(60)
         val footerReserve = if (bill.paymentInstructions.isNotBlank()) 92f else 74f
         val maxContentBottom = pageHeight - margin - footerReserve
 
         var index = startIndex
-        while (index < items.size) {
-            val item = items[index]
-            val rowHeight = if (isDualRateBill) subRowHeight * 2f else singleRowHeight
+        while (index < rows.size) {
+            val row = rows[index]
+            val paperLayout = buildLayout(
+                row.newspaperName,
+                boldWrapPaint,
+                paperColWidth,
+                Layout.Alignment.ALIGN_CENTER
+            )
+            val baseRowHeight = if (row.isDualRate) subRowHeight * 2f else singleRowMinHeight
+            val rowHeight = max(baseRowHeight, paperLayout.height + 12f)
+
             if (y + rowHeight > maxContentBottom && index > startIndex) {
                 return PageDrawResult(nextItemIndex = index, finished = false)
             }
@@ -393,23 +569,35 @@ object InvoicePdfGenerator {
             canvas.drawLine(col2End, y, col2End, y + rowHeight, borderPaint)
             canvas.drawLine(col3End, y, col3End, y + rowHeight, borderPaint)
 
-            if (isDualRateBill) {
-                canvas.drawLine(col1End, y + subRowHeight, right, y + subRowHeight, borderPaint)
-                canvas.drawText(item.newspaperName, (margin + col1End) / 2f, y + rowHeight / 2f + 4f, boldCenterPaint)
+            // Draw wrapped Paper Name centered inside Column 1
+            canvas.save()
+            canvas.clipRect(margin + 2f, y, col1End - 2f, y + rowHeight)
+            drawStaticLayout(
+                canvas,
+                paperLayout,
+                margin + 4f,
+                y + (rowHeight - paperLayout.height) / 2f
+            )
+            canvas.restore()
 
-                canvas.drawText(Formatters.formatQty(item.quantity1), (col1End + col2End) / 2f, y + 15f, boldCenterPaint)
-                canvas.drawText(Formatters.formatPlainAmount(item.price1), (col2End + col3End) / 2f, y + 15f, boldCenterPaint)
-                canvas.drawText(Formatters.formatPlainAmount(item.amount1), (col3End + col4End) / 2f, y + 15f, boldCenterPaint)
+            if (row.isDualRate) {
+                val midY = y + rowHeight / 2f
+                canvas.drawLine(col1End, midY, right, midY, borderPaint)
+                val row1TextY = y + (midY - y) / 2f + 4f
+                val row2TextY = midY + (y + rowHeight - midY) / 2f + 4f
 
-                canvas.drawText(Formatters.formatQty(item.quantity2), (col1End + col2End) / 2f, y + subRowHeight + 15f, boldCenterPaint)
-                canvas.drawText(Formatters.formatPlainAmount(item.price2), (col2End + col3End) / 2f, y + subRowHeight + 15f, boldCenterPaint)
-                canvas.drawText(Formatters.formatPlainAmount(item.amount2), (col3End + col4End) / 2f, y + subRowHeight + 15f, boldCenterPaint)
+                canvas.drawText(row.copy1, (col1End + col2End) / 2f, row1TextY, boldCenterPaint)
+                canvas.drawText(row.rate1, (col2End + col3End) / 2f, row1TextY, boldCenterPaint)
+                canvas.drawText(row.amount1, (col3End + col4End) / 2f, row1TextY, boldCenterPaint)
+
+                canvas.drawText(row.copy2, (col1End + col2End) / 2f, row2TextY, boldCenterPaint)
+                canvas.drawText(row.rate2, (col2End + col3End) / 2f, row2TextY, boldCenterPaint)
+                canvas.drawText(row.amount2, (col3End + col4End) / 2f, row2TextY, boldCenterPaint)
             } else {
-                val textY = y + singleRowHeight / 2f + 4f
-                canvas.drawText(item.newspaperName, (margin + col1End) / 2f, textY, boldCenterPaint)
-                canvas.drawText(item.quantity1.toString(), (col1End + col2End) / 2f, textY, boldCenterPaint)
-                canvas.drawText(Formatters.formatPlainAmount(item.price1), (col2End + col3End) / 2f, textY, boldCenterPaint)
-                canvas.drawText(Formatters.formatPlainAmount(item.amount1), (col3End + col4End) / 2f, textY, boldCenterPaint)
+                val textY = y + rowHeight / 2f + 4f
+                canvas.drawText(row.copy1, (col1End + col2End) / 2f, textY, boldCenterPaint)
+                canvas.drawText(row.rate1, (col2End + col3End) / 2f, textY, boldCenterPaint)
+                canvas.drawText(row.amount1, (col3End + col4End) / 2f, textY, boldCenterPaint)
             }
 
             y += rowHeight
@@ -437,47 +625,5 @@ object InvoicePdfGenerator {
         canvas.drawLine(margin, y + 10f, right, y + 10f, borderPaint)
 
         return PageDrawResult(nextItemIndex = index, finished = true)
-    }
-
-    private class InvoicePrintAdapter(
-        private val billWithItems: BillWithItems,
-        private val options: PdfPrintOptions
-    ) : PrintDocumentAdapter() {
-        override fun onLayout(
-            oldAttributes: PrintAttributes?,
-            newAttributes: PrintAttributes,
-            cancellationSignal: CancellationSignal?,
-            callback: LayoutResultCallback,
-            extras: Bundle?
-        ) {
-            if (cancellationSignal?.isCanceled == true) {
-                callback.onLayoutCancelled()
-                return
-            }
-            val info = PrintDocumentInfo.Builder("Pruthvi_Invoice_${billWithItems.bill.billNumber}.pdf")
-                .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
-                .setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN)
-                .build()
-            callback.onLayoutFinished(info, true)
-        }
-
-        override fun onWrite(
-            pages: Array<out PageRange>,
-            destination: ParcelFileDescriptor,
-            cancellationSignal: CancellationSignal?,
-            callback: WriteResultCallback
-        ) {
-            val document = createPdfDocument(billWithItems, options)
-            try {
-                FileOutputStream(destination.fileDescriptor).use { out ->
-                    document.writeTo(out)
-                }
-                callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
-            } catch (e: Exception) {
-                callback.onWriteFailed(e.message)
-            } finally {
-                document.close()
-            }
-        }
     }
 }

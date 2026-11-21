@@ -211,6 +211,7 @@ private fun MainAppContent(
             ) { innerPadding ->
                 BillsListScreen(
                     bills = jailBills,
+                    allNewspapers = newspapers,
                     filterState = billFilter,
                     onSearchChange = viewModel::updateBillSearchQuery,
                     onPaymentFilterChange = viewModel::updateBillPaymentFilter,
@@ -275,6 +276,7 @@ private fun MainAppContent(
             ) { innerPadding ->
                 BillsListScreen(
                     bills = igBills,
+                    allNewspapers = newspapers,
                     filterState = billFilter,
                     onSearchChange = viewModel::updateBillSearchQuery,
                     onPaymentFilterChange = viewModel::updateBillPaymentFilter,
@@ -342,6 +344,7 @@ private fun MainAppContent(
             ) { innerPadding ->
                 BillsListScreen(
                     bills = customerBills,
+                    allNewspapers = newspapers,
                     filterState = billFilter,
                     onSearchChange = viewModel::updateBillSearchQuery,
                     onPaymentFilterChange = viewModel::updateBillPaymentFilter,
@@ -466,6 +469,8 @@ private fun MainAppContent(
             if (selectedBill != null) {
                 BillPreviewScreen(
                     billWithItems = selectedBill,
+                    allNewspapers = newspapers,
+                    snackbarHostState = snackbarHostState,
                     onBack = viewModel::navigateBackFromBill,
                     onEdit = { viewModel.startEditBill(selectedBill) },
                     onTogglePaid = { viewModel.toggleBillPaymentStatus(selectedBill.bill) },

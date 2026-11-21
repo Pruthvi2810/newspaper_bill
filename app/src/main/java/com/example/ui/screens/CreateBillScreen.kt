@@ -3,8 +3,14 @@ package com.example.ui.screens
 import android.app.DatePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,9 +19,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Preview
@@ -50,17 +59,25 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import com.example.data.BillEntity
 import com.example.data.CustomerEntity
 import com.example.data.NewspaperEntity
@@ -133,6 +150,11 @@ fun CreateBillScreen(
 
     val isCentralJail = formState.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL
     var showCalculator by remember { mutableStateOf(false) }
+    var showCalendar by remember { mutableStateOf(false) }
+    var calcOffsetX by remember { mutableFloatStateOf(0f) }
+    var calcOffsetY by remember { mutableFloatStateOf(0f) }
+    var calOffsetX by remember { mutableFloatStateOf(0f) }
+    var calOffsetY by remember { mutableFloatStateOf(0f) }
 
     Scaffold(
         topBar = {
@@ -148,9 +170,27 @@ fun CreateBillScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            val next = !showCalendar
+                            showCalendar = next
+                            if (next) showCalculator = false
+                        },
+                        modifier = Modifier.testTag("bill_calendar_toggle")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = "Toggle Calendar",
+                            tint = if (showCalendar) Color(0xFFF38218) else Color.White
+                        )
+                    }
                     if (isCentralJail) {
                         IconButton(
-                            onClick = { showCalculator = !showCalculator },
+                            onClick = {
+                                val next = !showCalculator
+                                showCalculator = next
+                                if (next) showCalendar = false
+                            },
                             modifier = Modifier.testTag("central_jail_calculator_toggle")
                         ) {
                             Icon(
@@ -165,21 +205,23 @@ fun CreateBillScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Toggleable Calculator (Only for Ahmedabad Central Jail Bill)
-            if (isCentralJail) {
-                AnimatedVisibility(visible = showCalculator) {
-                    QuickCalculatorCard(onClose = { showCalculator = false })
-                }
-            }
+            val density = LocalDensity.current
+            val maxXPx = with(density) { (maxWidth - 260.dp).coerceAtLeast(40.dp).toPx() }
+            val maxYPx = with(density) { (maxHeight - 160.dp).coerceAtLeast(40.dp).toPx() }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             // Bill Metadata Card
             Card(
                 shape = RoundedCornerShape(14.dp),
@@ -318,7 +360,7 @@ fun CreateBillScreen(
                         }
                     }
 
-                    // Bill Number & Bill Date Row
+                    // Bill Number & Bill Date Row (Date of bill removed for Customer Bill)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -333,22 +375,24 @@ fun CreateBillScreen(
                                 .testTag("bill_number_input")
                         )
 
-                        OutlinedButton(
-                            onClick = { openDatePicker(formState.billDateMillis, onDateChange) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .padding(top = 4.dp)
-                                .testTag("bill_date_button")
-                        ) {
-                            Icon(
-                                Icons.Default.CalendarToday,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(Formatters.formatDate(formState.billDateMillis))
+                        if (formState.billCategory != BillEntity.CATEGORY_CUSTOMER) {
+                            OutlinedButton(
+                                onClick = { openDatePicker(formState.billDateMillis, onDateChange) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(56.dp)
+                                    .padding(top = 4.dp)
+                                    .testTag("bill_date_button")
+                            ) {
+                                Icon(
+                                    Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(Formatters.formatDate(formState.billDateMillis))
+                            }
                         }
                     }
 
@@ -532,6 +576,57 @@ fun CreateBillScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+
+            // Floating Pop-on-Screen Calculator Overlay (Dynamic / Draggable, no scroll needed)
+            if (isCentralJail) {
+                AnimatedVisibility(
+                    visible = showCalculator,
+                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .offset { IntOffset(calcOffsetX.roundToInt(), calcOffsetY.roundToInt()) }
+                        .widthIn(max = 360.dp)
+                        .zIndex(10f)
+                ) {
+                    QuickCalculatorCard(
+                        onClose = { showCalculator = false },
+                        headerDragModifier = Modifier.pointerInput(maxXPx, maxYPx) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                calcOffsetX = (calcOffsetX + dragAmount.x).coerceIn(-maxXPx / 2f, maxXPx / 2f)
+                                calcOffsetY = (calcOffsetY + dragAmount.y).coerceIn(0f, maxYPx)
+                            }
+                        }
+                    )
+                }
+            }
+
+            // Floating Pop-on-Screen Calendar Overlay (Dynamic / Draggable, no scroll needed)
+            AnimatedVisibility(
+                visible = showCalendar,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .offset { IntOffset(calOffsetX.roundToInt(), calOffsetY.roundToInt()) }
+                    .widthIn(max = 360.dp)
+                    .zIndex(10f)
+            ) {
+                QuickCalendarCard(
+                    onClose = { showCalendar = false },
+                    headerDragModifier = Modifier.pointerInput(maxXPx, maxYPx) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            calOffsetX = (calOffsetX + dragAmount.x).coerceIn(-maxXPx / 2f, maxXPx / 2f)
+                            calOffsetY = (calOffsetY + dragAmount.y).coerceIn(0f, maxYPx)
+                        }
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -551,6 +646,8 @@ private fun DualRateNewspaperCard(
     onRemove: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     Card(
         shape = RoundedCornerShape(14.dp),
@@ -587,17 +684,23 @@ private fun DualRateNewspaperCard(
 
             ExposedDropdownMenuBox(
                 expanded = expanded,
-                onExpandedChange = { expanded = it }
+                onExpandedChange = { next ->
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
+                    expanded = next
+                }
             ) {
                 OutlinedTextField(
                     value = item.newspaperName,
-                    onValueChange = { onNewspaperChange(it, null) },
+                    onValueChange = {},
+                    readOnly = true,
+                    placeholder = { Text("Tap to select newspaper") },
                     label = { Text("Select Newspaper from Database") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryEditable)
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                         .testTag("newspaper_name_input_$index")
                 )
 

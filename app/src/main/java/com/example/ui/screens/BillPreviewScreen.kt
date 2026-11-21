@@ -3,8 +3,6 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,9 +33,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -45,12 +44,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -61,7 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.BillEntity
 import com.example.data.BillWithItems
-import com.example.ui.components.PrintPreviewDialog
+import com.example.data.NewspaperEntity
 import com.example.ui.theme.InkNavy
 import com.example.ui.theme.InvoicePink
 import com.example.ui.theme.PaidGreen
@@ -69,12 +66,13 @@ import com.example.ui.theme.Terracotta
 import com.example.ui.theme.UnpaidRed
 import com.example.util.Formatters
 import com.example.util.InvoicePdfGenerator
-import com.example.util.PdfPrintOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BillPreviewScreen(
     billWithItems: BillWithItems,
+    allNewspapers: List<NewspaperEntity> = emptyList(),
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onTogglePaid: () -> Unit,
@@ -84,8 +82,6 @@ fun BillPreviewScreen(
     val context = LocalContext.current
     val bill = billWithItems.bill
     val isPaid = bill.paymentStatus == BillEntity.PAYMENT_PAID
-    var showPrintPreviewDialog by remember { mutableStateOf(false) }
-    var lastPrintOptions by remember { mutableStateOf(PdfPrintOptions()) }
 
     val pdfExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
@@ -95,29 +91,17 @@ fun BillPreviewScreen(
                 context = context,
                 uri = uri,
                 billWithItems = billWithItems,
-                options = lastPrintOptions
+                allNewspapers = allNewspapers
             )
             result.fold(
-                onSuccess = { onMessage("PDF exported successfully.") },
-                onFailure = { onMessage("Failed to export PDF: ${it.message}") }
+                onSuccess = { onMessage("Bill PDF saved successfully.") },
+                onFailure = { onMessage("Failed to save PDF: ${it.message}") }
             )
         }
     }
 
-    if (showPrintPreviewDialog) {
-        PrintPreviewDialog(
-            billWithItems = billWithItems,
-            initialOptions = lastPrintOptions,
-            onDismiss = { showPrintPreviewDialog = false },
-            onConfirmPrint = { selectedOptions ->
-                lastPrintOptions = selectedOptions
-                showPrintPreviewDialog = false
-                InvoicePdfGenerator.printInvoice(context, billWithItems, selectedOptions)
-            }
-        )
-    }
-
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Bill Preview", fontWeight = FontWeight.Bold, color = Color.White) },
@@ -133,7 +117,11 @@ fun BillPreviewScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            InvoicePdfGenerator.shareInvoicePdf(context, billWithItems).onFailure {
+                            InvoicePdfGenerator.shareInvoicePdf(
+                                context = context,
+                                billWithItems = billWithItems,
+                                allNewspapers = allNewspapers
+                            ).onFailure {
                                 onMessage("Unable to share bill: ${it.message}")
                             }
                         },
@@ -160,26 +148,42 @@ fun BillPreviewScreen(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Exact Pruthvi News Agency Pink Invoice Layout (Image 3)
-            PruthviInvoiceTemplate(billWithItems = billWithItems)
+            PruthviInvoiceTemplate(
+                billWithItems = billWithItems,
+                allNewspapers = allNewspapers
+            )
 
-            // Primary Actions: Print & Export PDF
+            // Primary Actions: Save Bill & Export PDF (Print Preview replaced by Save Bill)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { showPrintPreviewDialog = true },
+                    onClick = {
+                        val saveResult = InvoicePdfGenerator.saveInvoiceToDownloads(
+                            context = context,
+                            billWithItems = billWithItems,
+                            allNewspapers = allNewspapers
+                        )
+                        saveResult.fold(
+                            onSuccess = { fileName ->
+                                onMessage("Bill saved to Downloads: $fileName")
+                            },
+                            onFailure = {
+                                pdfExportLauncher.launch(InvoicePdfGenerator.buildInvoiceFileName(bill))
+                            }
+                        )
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = InkNavy),
                     modifier = Modifier
                         .weight(1f)
                         .height(54.dp)
-                        .testTag("preview_print_button"),
+                        .testTag("preview_save_bill_button"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Print, contentDescription = null)
+                    Icon(Icons.Default.Save, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Print", fontWeight = FontWeight.Bold)
+                    Text("Save Bill", fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
@@ -201,7 +205,11 @@ fun BillPreviewScreen(
             // Share Bill Button (WhatsApp, Gmail, Drive, etc.)
             Button(
                 onClick = {
-                    InvoicePdfGenerator.shareInvoicePdf(context, billWithItems).onFailure {
+                    InvoicePdfGenerator.shareInvoicePdf(
+                        context = context,
+                        billWithItems = billWithItems,
+                        allNewspapers = allNewspapers
+                    ).onFailure {
                         onMessage("Unable to share bill: ${it.message}")
                     }
                 },
@@ -246,10 +254,14 @@ fun BillPreviewScreen(
 @Composable
 fun PruthviInvoiceTemplate(
     billWithItems: BillWithItems,
+    allNewspapers: List<NewspaperEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val bill = billWithItems.bill
-    val items = billWithItems.items
+    val isCustomerBill = bill.billCategory == BillEntity.CATEGORY_CUSTOMER
+    val displayRows = remember(billWithItems, allNewspapers) {
+        InvoicePdfGenerator.buildDisplayRows(billWithItems, allNewspapers)
+    }
     val displayCustomer = if (bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL) {
         BillEntity.CENTRAL_JAIL_GUJARATI_NAME
     } else {
@@ -271,283 +283,334 @@ fun PruthviInvoiceTemplate(
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-            // 1. Top Note & Proprietor Box
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // 1. Top Note & Proprietor Box
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Note: Cheque Receive on Propriter's Name",
+                            color = InvoicePink,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "M:9924545306",
+                            color = InvoicePink,
+                            fontSize = 10.sp
+                        )
+                    }
                     Text(
-                        text = "Note: Cheque Receive on Propriter's Name",
-                        color = InvoicePink,
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = "M:9924545306",
+                        text = "Pro. : Rakeshsinh K. Rajawat",
                         color = InvoicePink,
                         fontSize = 10.sp
                     )
                 }
-                Text(
-                    text = "Pro. : Rakeshsinh K. Rajawat",
-                    color = InvoicePink,
-                    fontSize = 10.sp
-                )
-            }
 
-            // 2. Agency Title Box
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
-                    .padding(vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "PRUTHVI NEWS AGENCY",
-                    color = InvoicePink,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.5.sp
-                )
-            }
-
-            // 3. Address Box
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
-                    .padding(vertical = 4.dp, horizontal = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "A-4, Devalay Apartment,Keshavnagar,Subhashbridge,Ahmedabad-27",
-                    color = InvoicePink,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            // 4. Customer & Bill No/Date Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+                // 2. Agency Title Box
                 Box(
                     modifier = Modifier
-                        .weight(1.25f)
-                        .fillMaxHeight()
+                        .fillMaxWidth()
                         .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.CenterStart
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "M/s.  $displayCustomer",
-                            color = InvoicePink,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            lineHeight = 15.sp
-                        )
-                        if (bill.customerAddress.isNotBlank() && bill.billCategory == BillEntity.CATEGORY_CUSTOMER) {
+                    Text(
+                        text = "PRUTHVI NEWS AGENCY",
+                        color = InvoicePink,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                // 3. Address Box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
+                        .padding(vertical = 4.dp, horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "A-4, Devalay Apartment,Keshavnagar,Subhashbridge,Ahmedabad-27",
+                        color = InvoicePink,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // 4. Customer & Bill No/Date/Due Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (isCustomerBill) {
+                        // Customer Bill: split into 2 rows (Name + Address) matching No. + Due on right
+                        Column(
+                            modifier = Modifier
+                                .weight(1.25f)
+                                .fillMaxHeight()
+                                .clipToBounds()
+                                .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
+                        ) {
                             Text(
-                                text = bill.customerAddress,
+                                text = "M/s.  $displayCustomer",
+                                color = InvoicePink,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                lineHeight = 14.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                            HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                            Text(
+                                text = "Add. : ${bill.customerAddress.trim().ifBlank { "-" }}",
                                 color = InvoicePink,
                                 fontSize = 10.sp,
-                                lineHeight = 13.sp
+                                lineHeight = 13.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .weight(0.95f)
+                                .fillMaxHeight()
+                                .clipToBounds()
+                                .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
+                        ) {
+                            Text(
+                                text = "No. :   ${bill.billNumber}",
+                                color = InvoicePink,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp)
+                            )
+                            HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                            val dueText = if (bill.billStartDateMillis != null || bill.billEndDateMillis != null) {
+                                val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                                val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                                "Due: $startStr to $endStr"
+                            } else {
+                                "Due: -"
+                            }
+                            Text(
+                                text = dueText,
+                                color = InvoicePink,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .weight(1.25f)
+                                .fillMaxHeight()
+                                .clipToBounds()
+                                .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Text(
+                                text = "M/s.  $displayCustomer",
+                                color = InvoicePink,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                lineHeight = 15.sp
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .weight(0.95f)
+                                .fillMaxHeight()
+                                .clipToBounds()
+                                .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
+                        ) {
+                            Text(
+                                text = "No. :   ${bill.billNumber}",
+                                color = InvoicePink,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                            )
+                            HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                            Text(
+                                text = "Date :  ${Formatters.formatDate(bill.billDateMillis)}",
+                                color = InvoicePink,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                            )
+                            if (bill.billStartDateMillis != null || bill.billEndDateMillis != null) {
+                                HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                                val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                                val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                                Text(
+                                    text = "Due: $startStr to $endStr",
+                                    color = InvoicePink,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 5. Invoice Table
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, InvoicePink)
+                ) {
+                    // Table Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min)
+                    ) {
+                        TableHeaderCell("Name of Paper", Modifier.weight(2.0f))
+                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                        TableHeaderCell("Copy", Modifier.weight(0.8f))
+                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                        TableHeaderCell("Rate", Modifier.weight(0.9f))
+                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                        TableHeaderCell("Amount", Modifier.weight(1.3f))
+                    }
+                    HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+
+                    // Table Rows
+                    displayRows.forEach { row ->
+                        if (row.isDualRate) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(IntrinsicSize.Min)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(2.0f)
+                                        .fillMaxHeight()
+                                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = row.newspaperName,
+                                        color = InvoicePink,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                                VerticalDivider(color = InvoicePink, thickness = 1.dp)
+
+                                // Right side: 2 sub-rows for Copy | Rate | Amount
+                                Column(modifier = Modifier.weight(3.0f)) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(IntrinsicSize.Min)
+                                    ) {
+                                        TableValueCell(row.copy1, Modifier.weight(0.8f))
+                                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                                        TableValueCell(row.rate1, Modifier.weight(0.9f))
+                                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                                        TableValueCell(row.amount1, Modifier.weight(1.3f))
+                                    }
+                                    HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(IntrinsicSize.Min)
+                                    ) {
+                                        TableValueCell(row.copy2, Modifier.weight(0.8f))
+                                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                                        TableValueCell(row.rate2, Modifier.weight(0.9f))
+                                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                                        TableValueCell(row.amount2, Modifier.weight(1.3f))
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(IntrinsicSize.Min)
+                            ) {
+                                TableValueCell(row.newspaperName, Modifier.weight(2.0f))
+                                VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                                TableValueCell(row.copy1, Modifier.weight(0.8f))
+                                VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                                TableValueCell(row.rate1, Modifier.weight(0.9f))
+                                VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                                TableValueCell(row.amount1, Modifier.weight(1.3f))
+                            }
+                        }
+                        HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                    }
+
+                    // Total Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min)
+                    ) {
+                        Spacer(modifier = Modifier.weight(3.7f))
+                        VerticalDivider(color = InvoicePink, thickness = 1.dp)
+                        Box(
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Total: ₹ ${Formatters.formatPlainAmount(bill.grandTotal)}",
+                                color = InvoicePink,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
                 }
 
-                Column(
-                    modifier = Modifier
-                        .weight(0.95f)
-                        .fillMaxHeight()
-                        .border(1.dp, InvoicePink, RoundedCornerShape(6.dp))
-                ) {
+                // 6. Payment Instructions & Footer Signature
+                if (bill.paymentInstructions.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "No. :   ${bill.billNumber}",
+                        text = "Payment Note: ${bill.paymentInstructions}",
                         color = InvoicePink,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 4.dp)
                     )
-                    HorizontalDivider(color = InvoicePink, thickness = 1.dp)
-                    Text(
-                        text = "Date :  ${Formatters.formatDate(bill.billDateMillis)}",
-                        color = InvoicePink,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-                    )
-                    if (bill.billStartDateMillis != null || bill.billEndDateMillis != null) {
-                        HorizontalDivider(color = InvoicePink, thickness = 1.dp)
-                        val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
-                        val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
-                        Text(
-                            text = "Due: $startStr to $endStr",
-                            color = InvoicePink,
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-                        )
-                    }
                 }
-            }
-
-            // 5. Invoice Table
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, InvoicePink)
-            ) {
-                // Table Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min)
-                ) {
-                    TableHeaderCell("Name of Paper", Modifier.weight(2.0f))
-                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                    TableHeaderCell("Copy", Modifier.weight(0.8f))
-                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                    TableHeaderCell("Rate", Modifier.weight(0.9f))
-                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                    TableHeaderCell("Amount", Modifier.weight(1.3f))
-                }
-                HorizontalDivider(color = InvoicePink, thickness = 1.dp)
-
-                // Table Rows
-                val isDualRateBill = bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL
-                items.forEach { item ->
-                    if (isDualRateBill) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Min)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(2.0f)
-                                    .fillMaxHeight()
-                                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = item.newspaperName,
-                                    color = InvoicePink,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                            VerticalDivider(color = InvoicePink, thickness = 1.dp)
-
-                            // Right side: 2 sub-rows for Copy | Rate | Amount
-                            Column(modifier = Modifier.weight(3.0f)) {
-                                // Sub-row 1
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(IntrinsicSize.Min)
-                                ) {
-                                    TableValueCell(Formatters.formatQty(item.quantity1), Modifier.weight(0.8f))
-                                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                                    TableValueCell(Formatters.formatPlainAmount(item.price1), Modifier.weight(0.9f))
-                                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                                    TableValueCell(Formatters.formatPlainAmount(item.amount1), Modifier.weight(1.3f))
-                                }
-                                HorizontalDivider(color = InvoicePink, thickness = 1.dp)
-                                // Sub-row 2
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(IntrinsicSize.Min)
-                                ) {
-                                    TableValueCell(Formatters.formatQty(item.quantity2), Modifier.weight(0.8f))
-                                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                                    TableValueCell(Formatters.formatPlainAmount(item.price2), Modifier.weight(0.9f))
-                                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                                    TableValueCell(Formatters.formatPlainAmount(item.amount2), Modifier.weight(1.3f))
-                                }
-                            }
-                        }
-                    } else {
-                        // Single-row format matching IG Office Bill preview image
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Min)
-                        ) {
-                            TableValueCell(item.newspaperName, Modifier.weight(2.0f))
-                            VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                            TableValueCell(item.quantity1.toString(), Modifier.weight(0.8f))
-                            VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                            TableValueCell(Formatters.formatPlainAmount(item.price1), Modifier.weight(0.9f))
-                            VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                            TableValueCell(Formatters.formatPlainAmount(item.amount1), Modifier.weight(1.3f))
-                        }
-                    }
-                    HorizontalDivider(color = InvoicePink, thickness = 1.dp)
-                }
-
-                // Total Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min)
-                ) {
-                    Spacer(modifier = Modifier.weight(3.7f))
-                    VerticalDivider(color = InvoicePink, thickness = 1.dp)
-                    Box(
-                        modifier = Modifier
-                            .weight(1.3f)
-                            .padding(vertical = 8.dp, horizontal = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Total: ₹ ${Formatters.formatPlainAmount(bill.grandTotal)}",
-                            color = InvoicePink,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-
-            // 6. Payment Instructions & Footer Signature
-            if (bill.paymentInstructions.isNotBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Payment Note: ${bill.paymentInstructions}",
+                    text = "For,Pruthvi News Agency",
                     color = InvoicePink,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 4.dp)
                 )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "For,Pruthvi News Agency",
-                color = InvoicePink,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 4.dp)
-            )
-            HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                HorizontalDivider(color = InvoicePink, thickness = 1.dp)
             }
         }
     }
