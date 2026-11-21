@@ -444,6 +444,7 @@ private fun MainAppContent(
                 newspapers = newspapers,
                 onBack = viewModel::navigateBackFromBill,
                 onMonthChange = viewModel::updateBillMonth,
+                onMonthYearChange = viewModel::updateBillMonthYear,
                 onBillNumberChange = viewModel::updateBillNumber,
                 onCustomerNameChange = viewModel::updateCustomerName,
                 onCustomerAddressChange = viewModel::updateCustomerAddress,

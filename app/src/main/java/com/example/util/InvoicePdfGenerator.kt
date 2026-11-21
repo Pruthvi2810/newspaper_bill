@@ -42,7 +42,22 @@ object Formatters {
     private val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     private val plainAmountFormat = DecimalFormat("#,##0.00")
 
+    val FULL_MONTH_NAMES = listOf(
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    )
+
+    val SHORT_MONTH_NAMES = listOf(
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    )
+
     fun formatDate(millis: Long): String = dateFormat.format(Date(millis))
+
+    fun formatBillMonth(month: Int, year: Int): String {
+        val name = FULL_MONTH_NAMES[(month - 1).coerceIn(0, 11)]
+        return "$name-$year"
+    }
 
     fun formatCurrency(amount: Double): String = currencyFormat.format(amount)
 
@@ -57,7 +72,11 @@ object InvoicePdfGenerator {
     private const val MARGIN = 24f
 
     fun buildInvoiceFileName(bill: BillEntity): String {
-        val monthYear = SimpleDateFormat("MMM_yyyy", Locale.ENGLISH).format(Date(bill.billDateMillis))
+        val monthYear = if (bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL && bill.billMonth in 1..12 && bill.billYear > 0) {
+            "${Formatters.SHORT_MONTH_NAMES[bill.billMonth - 1]}_${bill.billYear}"
+        } else {
+            SimpleDateFormat("MMM_yyyy", Locale.ENGLISH).format(Date(bill.billDateMillis))
+        }
         val rawSuffix = when (bill.billCategory) {
             BillEntity.CATEGORY_CENTRAL_JAIL -> "Central_Jail"
             BillEntity.CATEGORY_IG_OFFICE -> "IG_Office"
@@ -481,8 +500,10 @@ object InvoicePdfGenerator {
 
                 y += infoHeight + 4f
             } else {
-                // Central Jail & IG Office: wrapped M/s. Customer Name inside left box + No. / Date (/ Due) on right
-                val rightRowMin = if (hasDueDates) 54f else 40f
+                // Central Jail & IG Office: wrapped M/s. Customer Name inside left box + No. / Date (/ Bill Month or Due) on right
+                val isCentralJailBill = bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL
+                val showThirdRow = isCentralJailBill || hasDueDates
+                val rightRowMin = if (showThirdRow) 58f else 40f
                 val leftContentHeight = customerNameLayout.height + 16f
                 val infoHeight = max(leftContentHeight, rightRowMin)
 
@@ -502,7 +523,7 @@ object InvoicePdfGenerator {
                 canvas.save()
                 canvas.clipRect(rightBoxLeft, y, right, y + infoHeight)
                 canvas.drawRoundRect(RectF(rightBoxLeft, y, right, y + infoHeight), 6f, 6f, borderPaint)
-                if (hasDueDates) {
+                if (showThirdRow) {
                     val rowH = infoHeight / 3f
                     canvas.drawLine(rightBoxLeft, y + rowH, right, y + rowH, borderPaint)
                     canvas.drawLine(rightBoxLeft, y + rowH * 2f, right, y + rowH * 2f, borderPaint)
@@ -513,10 +534,15 @@ object InvoicePdfGenerator {
                         y + rowH + rowH * 0.68f,
                         boldPaint
                     )
-                    val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
-                    val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                    val thirdLine = if (isCentralJailBill) {
+                        "Bill Month : ${Formatters.formatBillMonth(bill.billMonth, bill.billYear)}"
+                    } else {
+                        val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                        val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"
+                        "Due : $startStr to $endStr"
+                    }
                     canvas.drawText(
-                        "Due : $startStr to $endStr",
+                        thirdLine,
                         rightBoxLeft + 8f,
                         y + rowH * 2f + rowH * 0.68f,
                         boldPaint

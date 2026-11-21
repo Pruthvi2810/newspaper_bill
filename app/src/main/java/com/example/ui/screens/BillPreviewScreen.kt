@@ -455,7 +455,16 @@ fun PruthviInvoiceTemplate(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                             )
-                            if (bill.billStartDateMillis != null || bill.billEndDateMillis != null) {
+                            if (bill.billCategory == BillEntity.CATEGORY_CENTRAL_JAIL) {
+                                HorizontalDivider(color = InvoicePink, thickness = 1.dp)
+                                Text(
+                                    text = "Bill Month : ${Formatters.formatBillMonth(bill.billMonth, bill.billYear)}",
+                                    color = InvoicePink,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                )
+                            } else if (bill.billStartDateMillis != null || bill.billEndDateMillis != null) {
                                 HorizontalDivider(color = InvoicePink, thickness = 1.dp)
                                 val startStr = bill.billStartDateMillis?.let { Formatters.formatDate(it) } ?: "-"
                                 val endStr = bill.billEndDateMillis?.let { Formatters.formatDate(it) } ?: "-"

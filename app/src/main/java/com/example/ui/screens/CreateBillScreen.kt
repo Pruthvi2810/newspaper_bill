@@ -30,6 +30,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -101,6 +103,7 @@ fun CreateBillScreen(
     newspapers: List<NewspaperEntity>,
     onBack: () -> Unit,
     onMonthChange: (Int) -> Unit,
+    onMonthYearChange: (Int, Int) -> Unit = { m, _ -> onMonthChange(m) },
     onBillNumberChange: (String) -> Unit,
     onCustomerNameChange: (String) -> Unit,
     onCustomerAddressChange: (String) -> Unit,
@@ -121,6 +124,8 @@ fun CreateBillScreen(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var customerDropdownExpanded by remember { mutableStateOf(false) }
     var monthDropdownExpanded by remember { mutableStateOf(false) }
 
@@ -327,16 +332,30 @@ fun CreateBillScreen(
                         }
                     }
 
-                    // Month Selector Dropdown
+                    // Month Selector Dropdown (Select menu only, no keyboard)
                     ExposedDropdownMenuBox(
                         expanded = monthDropdownExpanded,
-                        onExpandedChange = { monthDropdownExpanded = it }
+                        onExpandedChange = { next ->
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                            monthDropdownExpanded = next
+                        }
                     ) {
+                        val monthDisplayText = if (isCentralJail) {
+                            Formatters.formatBillMonth(formState.billMonth, formState.billYear)
+                        } else {
+                            MONTH_NAMES[(formState.billMonth - 1).coerceIn(0, 11)]
+                        }
+                        val monthFieldLabel = if (isCentralJail) {
+                            "Bill Month"
+                        } else {
+                            "Select Month of Bill / મહિનો પસંદ કરો"
+                        }
                         OutlinedTextField(
-                            value = MONTH_NAMES[(formState.billMonth - 1).coerceIn(0, 11)],
+                            value = monthDisplayText,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Select Month of Bill / મહિનો પસંદ કરો") },
+                            label = { Text(monthFieldLabel) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = monthDropdownExpanded) },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -348,14 +367,71 @@ fun CreateBillScreen(
                             expanded = monthDropdownExpanded,
                             onDismissRequest = { monthDropdownExpanded = false }
                         ) {
-                            MONTH_NAMES.forEachIndexed { idx, monthLabel ->
-                                DropdownMenuItem(
-                                    text = { Text(monthLabel) },
-                                    onClick = {
-                                        onMonthChange(idx + 1)
-                                        monthDropdownExpanded = false
+                            if (isCentralJail) {
+                                // Year switcher row inside select menu (no keyboard)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            onMonthYearChange(formState.billMonth, formState.billYear - 1)
+                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                            contentDescription = "Previous Year",
+                                            tint = InkNavy
+                                        )
                                     }
-                                )
+                                    Text(
+                                        text = "Year: ${formState.billYear}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = InkNavy
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            onMonthYearChange(formState.billMonth, formState.billYear + 1)
+                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = "Next Year",
+                                            tint = InkNavy
+                                        )
+                                    }
+                                }
+                                HorizontalDivider()
+                                Formatters.FULL_MONTH_NAMES.forEachIndexed { idx, monthName ->
+                                    val label = "$monthName-${formState.billYear}"
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = label,
+                                                fontWeight = if (formState.billMonth == idx + 1) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (formState.billMonth == idx + 1) InkNavy else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        onClick = {
+                                            onMonthYearChange(idx + 1, formState.billYear)
+                                            monthDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            } else {
+                                MONTH_NAMES.forEachIndexed { idx, monthLabel ->
+                                    DropdownMenuItem(
+                                        text = { Text(monthLabel) },
+                                        onClick = {
+                                            onMonthChange(idx + 1)
+                                            monthDropdownExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

@@ -397,14 +397,18 @@ class BillingViewModel(application: Application) : AndroidViewModel(application)
 
     // Bill form updates
     fun updateBillMonth(month: Int) {
+        updateBillMonthYear(month, _billForm.value.billYear)
+    }
+
+    fun updateBillMonthYear(month: Int, year: Int) {
         _billForm.update { form ->
             val updatedNumber = when (form.billCategory) {
-                BillEntity.CATEGORY_CENTRAL_JAIL -> repository.formatCentralJailBillNumber(month, form.billYear)
-                BillEntity.CATEGORY_IG_OFFICE -> repository.formatIgOfficeBillNumber(month, form.billYear)
-                BillEntity.CATEGORY_CUSTOMER -> repository.formatCustomerBillNumber(month, form.billYear)
+                BillEntity.CATEGORY_CENTRAL_JAIL -> repository.formatCentralJailBillNumber(month, year)
+                BillEntity.CATEGORY_IG_OFFICE -> repository.formatIgOfficeBillNumber(month, year)
+                BillEntity.CATEGORY_CUSTOMER -> repository.formatCustomerBillNumber(month, year)
                 else -> form.billNumber
             }
-            form.copy(billMonth = month, billNumber = updatedNumber, errorMessage = null)
+            form.copy(billMonth = month, billYear = year, billNumber = updatedNumber, errorMessage = null)
         }
     }
 
